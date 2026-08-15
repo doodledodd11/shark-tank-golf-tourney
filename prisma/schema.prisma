@@ -1,0 +1,347 @@
+// Poker Club Golf Invitational — data model
+//
+// Design notes (see README.md "Architecture" for the full write-up):
+//
+// - Every top-level entity hangs off `Tournament`, so a future season is
+//   just a new Tournament row — nothing here is hardcoded to one year.
+// - String fields commented "union: ..." are closed sets of values enforced
+//   in application code (see lib/constants.ts), not Prisma `enum`. SQLite's
+//   connector doesn't support native enums, and we want the exact same
+//   schema to work unmodified against Postgres in production — so we use
+//   plain strings everywhere instead of enums.
+// - Money is stored as integer cents (e.g. $4,800.00 -> 480000) to avoid
+//   floating point rounding entirely. UI formats cents to dollars.
+// - Players are never deleted once a round starts; elimination is a status
+//   flag, not a row deletion, so history stays intact.
+// - TeamMembership/Pairing are scoped to a Round (not to a Player directly)
+//   because the whole field gets redrafted every round.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------------------------
+// Tournament — the root entity. One row per year/season.
+// --------------------------------------------------------------------------
+model Tournament {
+  id       String @id @default(cuid())
+  name     String @default("Poker Club Golf Invitational")
+  subtitle String @default("32 Players. Four Tiers. Draft Your Team. Win Your Matches. Survive.")
+  season   Int // e.g. 2026
+
+  // union: REGISTRATION | ROUND_1_DRAFT | ROUND_1_IN_PROGRESS | ROUND_2_DRAFT
+  //        | ROUND_2_IN_PROGRESS | CHAMPIONSHIP | COMPLETE
+  status      String  @default("REGISTRATION")
+  description String?
+
+  // Money in integer cents. entryFeeCents/paidPlayerCount are nullable
+  // because the entry fee may not be finalized yet.
+  prizePoolCents        Int  @default(0)
+  entryFeeCents         Int?
+  paidPlayerCount       Int?
+  championshipSplitSize Int  @default(4) // how many players split the pool
+
+  startDate DateTime?
+  isActive  Boolean   @default(true) // the tournament shown on the public site
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players Player[]
+  rounds  Round[]
+  courses Course[]
+
+  @@index([isActive])
+}
+
+// --------------------------------------------------------------------------
+// Player — one row per golfer for the life of the tournament.
+// --------------------------------------------------------------------------
+model Player {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  name          String
+  tier          Int // 1 (top) - 4
+  handicapIndex Float? // informational only — never used for match strokes
+  hometown      String?
+  avatarUrl     String?
+
+  // union: ACTIVE | ELIMINATED | CHAMPION
+  status          String @default("ACTIVE")
+  eliminatedRound Int? // round number the player was eliminated in
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teamMemberships     TeamMembership[]
+  captainOf           Team[]             @relation("TeamCaptain")
+  pairingsAsPlayer1   Pairing[]          @relation("PairingPlayer1")
+  pairingsAsPlayer2   Pairing[]          @relation("PairingPlayer2")
+  matchParticipations MatchParticipant[]
+  courseSelections    CourseSelection[]
+
+  @@index([tournamentId])
+  @@index([tournamentId, tier])
+  @@index([tournamentId, status])
+}
+
+// --------------------------------------------------------------------------
+// Round — Round 1 (32->16), Round 2 (16->8), Championship (8->4).
+// --------------------------------------------------------------------------
+model Round {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  number Int // 1, 2, 3 (3 = Championship)
+  name   String // "Round 1", "Round 2", "Championship" — editable
+
+  // union: PENDING | ACTIVE | COMPLETE
+  status String @default("PENDING")
+
+  playersStart   Int // 32, 16, 8 (informational)
+  playersAdvance Int // 16, 8, 4 (informational)
+
+  deadline DateTime?
+
+  // Set once the round's overall score ties and a captain-vs-captain
+  // playoff decides who advances (see Match.isPlayoff).
+  playoffWinnerTeamId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams    Team[]
+  pairings Pairing[]
+  matches  Match[]
+
+  @@unique([tournamentId, number])
+}
+
+// --------------------------------------------------------------------------
+// Team — a round-scoped roster (Team A / Team B). Players are redrafted
+// onto brand new Team rows every round, so a Team never outlives its Round.
+// --------------------------------------------------------------------------
+model Team {
+  id      String @id @default(cuid())
+  roundId String
+  round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  name String // "Team A" / "Team B", renameable
+
+  captainId String?
+  captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      TeamMembership[]
+  pairings         Pairing[]
+  matchesAsTeamA   Match[]          @relation("MatchTeamA")
+  matchesAsTeamB   Match[]          @relation("MatchTeamB")
+
+  @@index([roundId])
+}
+
+// --------------------------------------------------------------------------
+// TeamMembership — which players are on which team, for a given round.
+// This is intentionally NOT on Player directly, since rosters are rebuilt
+// every round.
+// --------------------------------------------------------------------------
+model TeamMembership {
+  id       String @id @default(cuid())
+  teamId   String
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, playerId])
+  @@index([playerId])
+}
+
+// --------------------------------------------------------------------------
+// Pairing — a locked 2-player pair a team has committed to for the round.
+// --------------------------------------------------------------------------
+model Pairing {
+  id      String @id @default(cuid())
+  roundId String
+  round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  teamId  String
+  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  player1Id String
+  player1   Player @relation("PairingPlayer1", fields: [player1Id], references: [id])
+  player2Id String
+  player2   Player @relation("PairingPlayer2", fields: [player2Id], references: [id])
+
+  order  Int     @default(0) // display order within the team, e.g. A1, A2...
+  locked Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matchesAsPairingA Match[] @relation("MatchPairingA")
+  matchesAsPairingB Match[] @relation("MatchPairingB")
+
+  @@index([roundId])
+  @@index([teamId])
+}
+
+// --------------------------------------------------------------------------
+// Match — one 2v2 (or, in the championship, 1v1 / 4v4) contest between two
+// sides. Segments hold the actual scoring; see MatchSegment.
+// --------------------------------------------------------------------------
+model Match {
+  id      String @id @default(cuid())
+  roundId String
+  round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  matchNumber Int // display order within the round
+
+  teamAId String?
+  teamA   Team?   @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamBId String?
+  teamB   Team?   @relation("MatchTeamB", fields: [teamBId], references: [id])
+
+  // Set when this match was built from two locked pairings (Round 1 & 2).
+  // Left null for championship singles and the sudden-death playoff, which
+  // use MatchParticipant directly instead.
+  pairingAId String?
+  pairingA   Pairing? @relation("MatchPairingA", fields: [pairingAId], references: [id])
+  pairingBId String?
+  pairingB   Pairing? @relation("MatchPairingB", fields: [pairingBId], references: [id])
+
+  courseId      String?
+  course        Course?   @relation(fields: [courseId], references: [id])
+  scheduledDate DateTime?
+
+  // union: PAIRING_PENDING | COURSE_SELECTION | SCHEDULED | IN_PROGRESS | COMPLETE
+  status String @default("PAIRING_PENDING")
+
+  // True for a captain-vs-captain (or 4v4 sudden death) tiebreaker match.
+  isPlayoff Boolean @default(false)
+
+  gameBookEventUrl       String?
+  gameBookLeaderboardUrl String?
+  externalScoringUrl     String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants MatchParticipant[]
+  segments     MatchSegment[]
+  courseSelections CourseSelection[]
+
+  @@index([roundId])
+  @@index([courseId])
+}
+
+// --------------------------------------------------------------------------
+// MatchParticipant — who is actually playing, per side, for a given match.
+// A uniform join table that scales from 1v1 (singles) to 2v2 to 4v4
+// (sudden death) without nullable player-slot columns on Match itself.
+// --------------------------------------------------------------------------
+model MatchParticipant {
+  id       String @id @default(cuid())
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  side String // union: "A" | "B"
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+}
+
+// --------------------------------------------------------------------------
+// MatchSegment — one scored component of a match (e.g. "Front 9 Scramble").
+// Deliberately generic: a match's segments (name/format/points) are fully
+// admin-editable so the championship format can evolve without a schema
+// change or redeploy.
+// --------------------------------------------------------------------------
+model MatchSegment {
+  id      String @id @default(cuid())
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  name  String // "Front 9", "Back 9", "Overall 18", "Playoff"
+  // union: SCRAMBLE | SHAMBLE | BEST_BALL | ALTERNATE_SHOT | SINGLES | SUDDEN_DEATH_SCRAMBLE
+  format String
+  holes  String? // free text, e.g. "1-9", "10-18", "1-18"
+  order  Int     @default(0)
+
+  pointsAvailable Float @default(1)
+
+  teamAScore Float? // raw strokes, informational
+  teamBScore Float?
+
+  // union: "A" | "B" | "TIE" | null (not yet decided)
+  winner String?
+
+  // union: PENDING | IN_PROGRESS | COMPLETE
+  status String @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matchId])
+}
+
+// --------------------------------------------------------------------------
+// Course — an admin-approved course players can choose between.
+// --------------------------------------------------------------------------
+model Course {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  name       String
+  city       String?
+  state      String?
+  website    String?
+  priceRange String?
+  notes      String?
+  imageUrl   String?
+
+  approved Boolean @default(true)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches    Match[]
+  selections CourseSelection[]
+
+  @@index([tournamentId])
+}
+
+// --------------------------------------------------------------------------
+// CourseSelection — one player's preferred course for one match. The
+// weighted randomizer reads these (see lib/tournament-logic.ts).
+// --------------------------------------------------------------------------
+model CourseSelection {
+  id       String @id @default(cuid())
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([matchId, playerId])
+}
