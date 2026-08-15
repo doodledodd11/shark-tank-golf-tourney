@@ -480,10 +480,21 @@ just a suggested path):
 2. **Vercel project**: `vercel link` from the repo root creates/links a
    Vercel project. `vercel git connect` (or the "Connect to Git" button in
    the Vercel dashboard) hooks it up to this GitHub repo for
-   deploy-on-push — that step requires a one-time interactive GitHub
-   authorization in Vercel's own dashboard (**Account Settings → Login
-   Connections**) before it'll succeed; without it, deploys are triggered
-   manually with `vercel --prod` instead of automatically on push.
+   deploy-on-push. Two separate one-time GitHub authorizations have to
+   exist first, and the error messages don't make it obvious which one is
+   missing:
+   - A **login connection** (Vercel dashboard → Account Settings →
+     **Authentication**) — this alone gets you a `Failed to connect
+     [repo]... Make sure you have access` error from `vercel git connect`,
+     because it only covers signing in, not repo access.
+   - The **Vercel GitHub App installed** with access to this repo
+     (github.com/settings/installations — if Vercel isn't listed there at
+     all, install it directly at
+     [github.com/apps/vercel/installations/new](https://github.com/apps/vercel/installations/new)
+     and grant it access to `shark-tank-golf-tourney` specifically, or to
+     all repositories). This is the one that actually grants repository
+     access; without it, deploys are triggered manually with `vercel --prod`
+     instead of automatically on push.
 3. **Environment variables**, set per-environment via `vercel env add
    <NAME> production` (or the dashboard): `DATABASE_URL` (the
    **production** Neon branch's pooled connection string —
