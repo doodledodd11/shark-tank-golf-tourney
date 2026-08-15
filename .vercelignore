@@ -1,0 +1,8 @@
+# `vercel deploy` uploads local files independently of .gitignore, so this
+# file exists specifically to make sure .env (local secrets, pointed at the
+# Neon *development* branch) never rides along into a deployment — Vercel's
+# own dashboard/CLI-configured Environment Variables are what should govern
+# every deployed environment, never an uploaded dotfile.
+.env
+.env.local
+.env*.local

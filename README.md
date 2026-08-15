@@ -29,13 +29,15 @@ need accounts.
 
 ## Quick start
 
-Requires Node.js 20.9+ (developed against Node 24).
+Requires Node.js 20.9+ (developed against Node 24) and a Neon Postgres
+database (see [Database](#database) — it's free and takes about a minute).
 
 ```bash
 npm install
 cp .env.example .env
-# edit .env — see "Environment variables" below
-npm run db:migrate   # creates the local SQLite database
+# edit .env — set DATABASE_URL to your Neon connection string,
+# and pick ADMIN_PASSWORD / SESSION_SECRET (see "Environment variables" below)
+npm run db:migrate   # applies migrations to that database
 npm run db:seed      # populates it with a full 32-player demo tournament
 npm run dev
 ```
@@ -70,7 +72,7 @@ script. To manage it, sign in at
 | Framework | [Next.js 16](https://nextjs.org) (App Router, Turbopack, Server Actions) |
 | Language | TypeScript, strict mode |
 | UI | React 19, Tailwind CSS v4, [Radix UI](https://www.radix-ui.com/) primitives (Tabs, Select) |
-| Database | SQLite locally, Postgres in production, via [Prisma](https://www.prisma.io) |
+| Database | Postgres via [Neon](https://neon.tech) (branched: `development` locally, `production` live), through [Prisma](https://www.prisma.io) |
 | Validation | [Zod](https://zod.dev) on every Server Action |
 | Testing | [Vitest](https://vitest.dev) — pure-logic unit tests + real-database integration tests |
 | Icons / fonts | [lucide-react](https://lucide.dev), `next/font` (Playfair Display + Inter) |
@@ -140,12 +142,16 @@ day one, even though only one season's UI is built right now.
 A few choices worth knowing about (see `prisma/schema.prisma` for the full
 picture and inline reasoning):
 
-- **No Prisma `enum`s.** SQLite's connector doesn't support them, and the
-  schema is meant to work unmodified against Postgres in production — so
-  every "closed set of strings" field (statuses, formats, winners) is a
-  plain `String` column, validated against a TypeScript union exported from
-  `lib/constants.ts`. This is the single source of truth for every dropdown
-  and status label in the app.
+- **No Prisma `enum`s**, even though the schema now runs on Postgres (which
+  does support them) everywhere. This was originally a portability
+  decision, back when the plan was SQLite locally / Postgres in production
+  and SQLite's connector has no enum support (see [Database](#database)
+  for why that plan changed) — but the convention stuck because it costs
+  nothing and every "closed set of strings" field (statuses, formats,
+  winners) already has a single TypeScript source of truth as a plain
+  `String` column, validated against a union exported from
+  `lib/constants.ts`. That's also the single source of truth for every
+  dropdown and status label in the app.
 - **Money is integer cents**, never floats, to avoid rounding drift. UI
   formats cents to dollars (`lib/format.ts`); admin forms take dollar input
   and convert on submit.
@@ -177,27 +183,36 @@ picture and inline reasoning):
   "winner" field to drift out of sync with the segments that actually
   determine it.
 
-### Database: SQLite locally, Postgres in production
+### Database: Postgres everywhere, via Neon branching
 
-Local development uses a zero-config SQLite file (`prisma/dev.db`) so
-`npm install && npm run dev` works immediately with no external account.
-Production should point at a real Postgres database — [Neon](https://neon.tech)
-or [Supabase](https://supabase.com) both have workable free tiers and a
-five-minute setup. The schema avoids every SQLite/Postgres divergence (no
-enums, no provider-specific column attributes), so switching is a two-line
-change:
+The project started on SQLite for local dev (zero setup, no account needed)
+with Postgres reserved for production, switched by a one-line
+`datasource.provider` change. That works fine right up until you actually
+need to *run* both — at that point maintaining two sets of migration
+history (SQLite and Postgres generate genuinely different DDL for the same
+schema.prisma; a SQLite-generated migration will not run against Postgres)
+becomes its own maintenance burden for no real benefit anymore.
 
-```prisma
-// prisma/schema.prisma
-datasource db {
-  provider = "postgresql"   // was "sqlite"
-  url      = env("DATABASE_URL")
-}
-```
+Once this project was actually deployed, it moved to **Postgres in both
+places**, using [Neon](https://neon.tech)'s branching feature: one Neon
+project, two branches —
 
-Then point `DATABASE_URL` at your Postgres connection string and run
-`npx prisma migrate deploy`. See [Deployment](#deployment) for the full
-walkthrough.
+- **`production`** (Neon's default branch) — the live database, whatever
+  Vercel's `DATABASE_URL` environment variable points at.
+- **`development`** — an isolated branch for local work, instant to create,
+  free to reset. Your local `.env` points here.
+
+Both branches share one migration history (`prisma/migrations/`), applied
+with `npx prisma migrate dev` locally (development branch) and
+`npx prisma migrate deploy` for production — see
+[Deployment](#deployment). Because it's the same engine everywhere, there's
+no provider divergence to think about at all, and `db-relations.test.ts`
+(see [Testing](#testing)) exercises the exact same Postgres behavior the
+live site runs on, not an approximation of it.
+
+If you'd rather not use Neon: any Postgres works, including
+[Supabase](https://supabase.com) — just skip the branching part and use two
+separate databases (or projects) instead of two branches of one project.
 
 ### Why not the newest of everything
 
@@ -226,9 +241,9 @@ Copy `.env.example` to `.env` and fill in real values. **Never commit
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | `file:./dev.db` locally; a Postgres connection string in production. |
-| `ADMIN_PASSWORD` | yes | Plaintext password checked server-side for `/admin` access. Pick something long — it's compared with a constant-time comparison, but only the password's strength stops brute-forcing. |
-| `SESSION_SECRET` | yes | Random secret used to sign the admin session cookie. Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `DATABASE_URL` | yes | Postgres connection string (use the pooled `-pooler` host). Your local `.env` should point at the Neon **development** branch; Vercel's Production environment variable should point at the **production** branch. Never the same value in both places. |
+| `ADMIN_PASSWORD` | yes | Plaintext password checked server-side for `/admin` access. Pick something long — it's compared with a constant-time comparison, but only the password's strength stops brute-forcing. Use a different value locally vs. in production. |
+| `SESSION_SECRET` | yes | Random secret used to sign the admin session cookie. Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Use a different value locally vs. in production. |
 
 None of these are ever sent to the browser — `ADMIN_PASSWORD` and
 `SESSION_SECRET` are only read inside Server Actions, Proxy, and the DAL,
@@ -238,10 +253,24 @@ none of which bundle into client JavaScript.
 
 ## Database
 
+### First-time setup
+
+1. Create a free account at [neon.tech](https://neon.tech) (GitHub sign-in
+   works) and create a project — this repo's was created via the Neon CLI
+   (`neonctl projects create`), but the dashboard works identically.
+2. Create a second branch off the default one, named `development`
+   (dashboard: **Branches → Create branch**, or `neonctl branches create
+   --name development`). You now have `production` (the default branch) and
+   `development`.
+3. Grab the **pooled** connection string for the `development` branch
+   (dashboard: **Connect**, or `neonctl connection-string development
+   --pooled`) and put it in your local `.env` as `DATABASE_URL`.
+4. `npm run db:migrate` to apply the schema, then `npm run db:seed`.
+
 ### Local development
 
 ```bash
-npm run db:migrate    # apply migrations, create prisma/dev.db if missing
+npm run db:migrate    # apply pending migrations to whatever DATABASE_URL points at
 npm run db:seed       # wipe and repopulate with the demo tournament
 npm run db:studio     # open Prisma Studio, a GUI for browsing/editing data
 ```
@@ -269,27 +298,24 @@ fully idempotent (wipes all tournament data first).
 
 ### Migrations
 
-Prisma migration history lives in `prisma/migrations/`. When you change
-`prisma/schema.prisma`:
+Prisma migration history lives in `prisma/migrations/` and is shared by
+both Neon branches. When you change `prisma/schema.prisma`:
 
 ```bash
 npm run db:migrate -- --name describe_your_change
 ```
 
-This updates your local `dev.db` and creates a new migration file to commit.
-In production, run `npx prisma migrate deploy` (applies pending migrations
-without prompting) instead of `db:migrate` (which is dev-only and can
-interactively reset the database).
-
-### Switching to Postgres
-
-See the [Database](#database-sqlite-locally-postgres-in-production)
-section above for the schema change; from there:
+This applies the migration to whatever `DATABASE_URL` your `.env` points at
+(the `development` branch, normally) and creates a new migration file —
+commit that file. Once you're happy with the change, apply the exact same
+migration to production:
 
 ```bash
-npx prisma migrate deploy
-npm run db:seed   # optional — only if you want the demo data in production too
+DATABASE_URL="<production-pooled-connection-string>" npx prisma migrate deploy
 ```
+
+`migrate deploy` (unlike `migrate dev`) never prompts and never resets data
+— it's the only migration command that should ever touch production.
 
 ---
 
@@ -367,13 +393,20 @@ Two suites, both under `tests/`:
   values, and the weighted course randomizer — including the exact example
   from the spec (`A, A, B, C` → a 4-entry pool, ~50% draw chance for `A`,
   verified both by exact index and by a 4,000-trial statistical check).
-- **`db-relations.test.ts`** — integration tests against a real, disposable
-  SQLite database (schema pushed fresh in `beforeAll`, deleted in
-  `afterAll`) covering the relational guarantees pure functions can't see:
-  a player can belong to different teams in different rounds (redraft
-  support), a round's roster query is correctly scoped to that round only,
-  eliminated/champion players remain queryable with their history intact,
-  and pairings are correctly scoped to their team and round.
+- **`db-relations.test.ts`** — integration tests against the real Postgres
+  database (whatever `DATABASE_URL` points at — the Neon `development`
+  branch in normal use), covering the relational guarantees pure functions
+  can't see: a player can belong to different teams in different rounds
+  (redraft support), a round's roster query is correctly scoped to that
+  round only, eliminated/champion players remain queryable with their
+  history intact, and pairings are correctly scoped to their team and
+  round. Every tournament these tests create is tagged `season: 2099`,
+  which `afterAll` deletes — nothing lingers in the shared dev database
+  between runs. This suite is what caught a real bug during development:
+  `Pairing`/`MatchParticipant`/`CourseSelection`'s foreign keys to `Player`
+  had no explicit `onDelete` behavior, which defaults to blocking the
+  delete on Postgres — fixed by making them cascade (see the schema's
+  top-of-file comments for the full reasoning).
 
 Every one of these was chosen to match the spec's explicit testing
 checklist (team membership is round-specific, players can be redrafted,
@@ -439,31 +472,42 @@ tests/                    Vitest suites (unit + DB integration)
 
 ## Deployment
 
-The recommended path is **Vercel + Neon (or Supabase) Postgres**:
+Live on **Vercel + Neon Postgres**. This is how it's actually set up (not
+just a suggested path):
 
-1. Create a Postgres database on [Neon](https://neon.tech) or
-   [Supabase](https://supabase.com) and copy its connection string.
-2. In `prisma/schema.prisma`, change the datasource `provider` from
-   `"sqlite"` to `"postgresql"` (see [Database](#database) above).
-3. Push this repo to GitHub and import it into
-   [Vercel](https://vercel.com/new).
-4. Set environment variables in the Vercel project settings:
-   `DATABASE_URL` (your Postgres connection string), `ADMIN_PASSWORD`, and
-   `SESSION_SECRET`.
-5. Run migrations against the production database once, from your machine
-   or a one-off command:
-   ```bash
-   DATABASE_URL="<production-url>" npx prisma migrate deploy
-   ```
-6. Optionally seed production with placeholder data, or skip this and enter
-   the real 32-player field directly through `/admin` once deployed.
-7. Deploy. Because every page is rendered dynamically (see
-   [Architecture](#architecture--key-decisions)), admin edits made after
-   deployment show up immediately — there's no build step to re-trigger and
-   no risk of tournament data disappearing on redeploy or server restart.
+1. **Database**: one Neon project with a `production` branch (the default)
+   and a `development` branch, as described in [Database](#database).
+2. **Vercel project**: `vercel link` from the repo root creates/links a
+   Vercel project. `vercel git connect` (or the "Connect to Git" button in
+   the Vercel dashboard) hooks it up to this GitHub repo for
+   deploy-on-push — that step requires a one-time interactive GitHub
+   authorization in Vercel's own dashboard (**Account Settings → Login
+   Connections**) before it'll succeed; without it, deploys are triggered
+   manually with `vercel --prod` instead of automatically on push.
+3. **Environment variables**, set per-environment via `vercel env add
+   <NAME> production` (or the dashboard): `DATABASE_URL` (the
+   **production** Neon branch's pooled connection string —
+   *not* the same one your local `.env` uses), `ADMIN_PASSWORD`, and
+   `SESSION_SECRET`. Use different values than your local `.env` for the
+   latter two.
+4. **`.vercelignore`** excludes `.env`/`.env.local` explicitly. This
+   matters: `vercel deploy` uploads local files independently of
+   `.gitignore`, so without it your local `.env` — pointed at the
+   *development* database, with dev-only secrets — would ride along into
+   the deployment and could take precedence over the environment variables
+   you configured in Vercel. Confirmed by testing: the first deploy here
+   did exactly that, logging in with the local dev password instead of the
+   production one, until `.vercelignore` was added.
+5. Apply migrations to the production branch once (see
+   [Migrations](#migrations)), then deploy: `vercel --prod`.
 
-Players never need Supabase/Neon accounts — only the admin's Server Actions
-ever write to the database, gated by `ADMIN_PASSWORD`.
+Because every page is rendered dynamically (see
+[Architecture](#architecture--key-decisions)), admin edits made after
+deployment show up immediately — there's no build step to re-trigger and no
+risk of tournament data disappearing on redeploy or server restart.
+
+Players never need Neon or Vercel accounts — only the admin's Server
+Actions ever write to the database, gated by `ADMIN_PASSWORD`.
 
 ---
 

@@ -1,6 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Flag } from "lucide-react";
 import { NAV_LINKS } from "@/lib/nav";
+import { HOST_CLUB } from "@/lib/site-config";
 
 export function Footer({ tournamentName, season }: { tournamentName: string; season: number }) {
   return (
@@ -28,7 +30,30 @@ export function Footer({ tournamentName, season }: { tournamentName: string; sea
           </nav>
         </div>
 
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-cream-50/10 pt-6 text-xs text-cream-100/40 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 border-t border-cream-50/10 pt-6">
+          <a
+            href={HOST_CLUB.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex items-center gap-3"
+          >
+            <span className="flex items-center justify-center rounded-md bg-cream-50 px-3 py-2 shadow-sm ring-1 ring-black/5 transition-transform group-hover:scale-[1.03]">
+              <Image
+                src={HOST_CLUB.logoSrc}
+                alt={HOST_CLUB.name}
+                width={HOST_CLUB.logoWidth}
+                height={HOST_CLUB.logoHeight}
+                className="h-auto w-[168px]"
+              />
+            </span>
+            <span className="text-sm text-cream-100/50">
+              Hosted by{" "}
+              <span className="font-semibold text-cream-100/80 group-hover:text-red-400">{HOST_CLUB.name}</span>
+            </span>
+          </a>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 text-xs text-cream-100/40 sm:flex-row sm:items-center sm:justify-between">
           <p>No handicap strokes. No mercy. Draft wisely.</p>
           <p>
             Official results live here — live shot-by-shot scoring, when linked, is provided by third-party

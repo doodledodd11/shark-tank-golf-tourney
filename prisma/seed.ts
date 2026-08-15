@@ -45,7 +45,7 @@ async function main() {
   console.log("Creating tournament...");
   const tournament = await prisma.tournament.create({
     data: {
-      name: "Poker Club Golf Invitational",
+      name: "Shark Tank Golf Invitational",
       subtitle: "32 Players. Four Tiers. Draft Your Team. Win Your Matches. Survive.",
       season: 2026,
       status: "ROUND_1_IN_PROGRESS",

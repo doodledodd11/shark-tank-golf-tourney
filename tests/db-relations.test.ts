@@ -1,42 +1,28 @@
-// Integration tests against a real, scratch SQLite database (schema pushed
-// fresh in beforeAll, deleted in afterAll) — these guard the relational
-// invariants the tournament format depends on, which the pure-function
-// tests in tournament-logic.test.ts can't see: round-scoped rosters,
-// redraftability, elimination history, and pairing/round/team scoping.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { execSync } from "node:child_process";
-import { existsSync, unlinkSync } from "node:fs";
-import path from "node:path";
+// Integration tests against the real Postgres database (the Neon
+// "development" branch — see .env) — these guard the relational invariants
+// the tournament format depends on, which the pure-function tests in
+// tournament-logic.test.ts can't see: round-scoped rosters, redraftability,
+// elimination history, and pairing/round/team scoping.
+//
+// This assumes migrations have already been applied to the target database
+// (`npm run db:migrate`), same as any normal `npm run dev` session — tests
+// don't push their own schema. Every tournament created here uses the
+// unmistakable marker `season: 2099`, which is exactly what afterAll
+// deletes (cascading through every table via the schema's onDelete rules),
+// so nothing lingers in the shared dev database between runs.
+import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
-const TEST_DB_PATH = path.resolve(import.meta.dirname, "../prisma/test-relations.db");
-const TEST_DATABASE_URL = `file:${TEST_DB_PATH}`;
-
-let prisma: PrismaClient;
-
-beforeAll(() => {
-  for (const suffix of ["", "-journal"]) {
-    const p = TEST_DB_PATH + suffix;
-    if (existsSync(p)) unlinkSync(p);
-  }
-  execSync("npx prisma db push --skip-generate --accept-data-loss", {
-    cwd: path.resolve(import.meta.dirname, ".."),
-    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-    stdio: "pipe",
-  });
-  prisma = new PrismaClient({ datasourceUrl: TEST_DATABASE_URL });
-}, 30_000);
+const TEST_SEASON = 2099;
+const prisma = new PrismaClient();
 
 afterAll(async () => {
-  await prisma?.$disconnect();
-  for (const suffix of ["", "-journal"]) {
-    const p = TEST_DB_PATH + suffix;
-    if (existsSync(p)) unlinkSync(p);
-  }
+  await prisma.tournament.deleteMany({ where: { season: TEST_SEASON } });
+  await prisma.$disconnect();
 });
 
 async function makeTournament() {
-  return prisma.tournament.create({ data: { name: "Test Cup", season: 2099 } });
+  return prisma.tournament.create({ data: { name: "Test Cup", season: TEST_SEASON } });
 }
 
 describe("team membership is round-specific and redraftable", () => {

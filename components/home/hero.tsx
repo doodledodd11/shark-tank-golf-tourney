@@ -1,6 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Flag, ScrollText, Users } from "lucide-react";
 import { TOURNAMENT_STATUS_LABELS, type TournamentStatus } from "@/lib/constants";
+import { HOST_CLUB } from "@/lib/site-config";
 
 export function Hero({
   name,
@@ -48,6 +50,24 @@ export function Hero({
             Read the Rules
           </Link>
         </div>
+
+        <a
+          href={HOST_CLUB.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group mt-12 inline-flex items-center gap-3 text-sm text-cream-100/50 transition-colors hover:text-cream-100/80"
+        >
+          Hosted by
+          <span className="flex items-center rounded-md bg-cream-50 px-2.5 py-1.5 shadow-sm transition-transform group-hover:scale-[1.04]">
+            <Image
+              src={HOST_CLUB.logoSrc}
+              alt={HOST_CLUB.name}
+              width={HOST_CLUB.logoWidth}
+              height={HOST_CLUB.logoHeight}
+              className="h-8 w-auto"
+            />
+          </span>
+        </a>
       </div>
     </section>
   );

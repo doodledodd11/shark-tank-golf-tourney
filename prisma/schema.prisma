@@ -1,27 +1,40 @@
-// Poker Club Golf Invitational — data model
+// Shark Tank Golf Invitational — data model
 //
 // Design notes (see README.md "Architecture" for the full write-up):
 //
 // - Every top-level entity hangs off `Tournament`, so a future season is
 //   just a new Tournament row — nothing here is hardcoded to one year.
 // - String fields commented "union: ..." are closed sets of values enforced
-//   in application code (see lib/constants.ts), not Prisma `enum`. SQLite's
-//   connector doesn't support native enums, and we want the exact same
-//   schema to work unmodified against Postgres in production — so we use
-//   plain strings everywhere instead of enums.
+//   in application code (see lib/constants.ts), not Prisma `enum`. This
+//   schema originally also ran against SQLite (whose connector has no
+//   native enum support) — it now runs on Postgres everywhere (via Neon,
+//   both locally and in production), but the plain-string convention was
+//   kept since it costs nothing and every union already has a single
+//   TypeScript source of truth in lib/constants.ts.
 // - Money is stored as integer cents (e.g. $4,800.00 -> 480000) to avoid
 //   floating point rounding entirely. UI formats cents to dollars.
 // - Players are never deleted once a round starts; elimination is a status
 //   flag, not a row deletion, so history stays intact.
 // - TeamMembership/Pairing are scoped to a Round (not to a Player directly)
 //   because the whole field gets redrafted every round.
+// - Every FK pointing at Player specifies onDelete explicitly, rather than
+//   relying on Prisma/Postgres's default (which restricts the delete
+//   instead of resolving it). Pairing/MatchParticipant/CourseSelection
+//   cascade — a pairing, a match slot, or a course pick can't outlive the
+//   player it's about. Team.captain sets null instead — losing a captain
+//   reference shouldn't delete the team. This matters even though the
+//   admin UI only allows deleting a player during Registration (before any
+//   of these rows would exist): Postgres resolves a single cascading
+//   delete's multiple FK paths in an order that isn't guaranteed to match
+//   "delete the dependent rows first," so an unspecified action on any one
+//   path can still block the whole operation.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -137,7 +150,7 @@ model Team {
   name String // "Team A" / "Team B", renameable
 
   captainId String?
-  captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id])
+  captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -179,9 +192,9 @@ model Pairing {
   team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   player1Id String
-  player1   Player @relation("PairingPlayer1", fields: [player1Id], references: [id])
+  player1   Player @relation("PairingPlayer1", fields: [player1Id], references: [id], onDelete: Cascade)
   player2Id String
-  player2   Player @relation("PairingPlayer2", fields: [player2Id], references: [id])
+  player2   Player @relation("PairingPlayer2", fields: [player2Id], references: [id], onDelete: Cascade)
 
   order  Int     @default(0) // display order within the team, e.g. A1, A2...
   locked Boolean @default(false)
@@ -257,7 +270,7 @@ model MatchParticipant {
   matchId  String
   match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   playerId String
-  player   Player @relation(fields: [playerId], references: [id])
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   side String // union: "A" | "B"
 
@@ -336,7 +349,7 @@ model CourseSelection {
   matchId  String
   match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   playerId String
-  player   Player @relation(fields: [playerId], references: [id])
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   courseId String
   course   Course @relation(fields: [courseId], references: [id])
 
