@@ -46,6 +46,39 @@ export async function setRoundRosters(input: {
   return result;
 }
 
+/** Single-player version of the same move, for the Players page (which
+ * knows a player's *current* team but not the rest of both rosters) —
+ * computes the resulting two rosters and reuses setRoundRostersLogic so it
+ * gets the exact same stale-pairing guard as the round page's tool. */
+export async function movePlayerToOtherTeam(input: {
+  playerId: string;
+  roundId: string;
+  fromTeamId: string;
+  toTeamId: string;
+}): Promise<FormState> {
+  await requireAdminSession();
+  const [fromTeam, toTeam] = await Promise.all([
+    prisma.team.findUnique({ where: { id: input.fromTeamId }, include: { memberships: true } }),
+    prisma.team.findUnique({ where: { id: input.toTeamId }, include: { memberships: true } }),
+  ]);
+  if (!fromTeam || !toTeam || fromTeam.roundId !== input.roundId || toTeam.roundId !== input.roundId) {
+    return { error: "Couldn't find that round's teams." };
+  }
+  if (!fromTeam.memberships.some((m) => m.playerId === input.playerId)) {
+    return { error: "That player isn't currently on that team." };
+  }
+
+  const result = await setRoundRostersLogic({
+    roundId: input.roundId,
+    teamAId: input.fromTeamId,
+    teamBId: input.toTeamId,
+    teamAPlayerIds: fromTeam.memberships.map((m) => m.playerId).filter((id) => id !== input.playerId),
+    teamBPlayerIds: [...toTeam.memberships.map((m) => m.playerId), input.playerId],
+  });
+  if (result.success) revalidateAll();
+  return result;
+}
+
 const updateTeamSchema = z.object({
   name: z.string().trim().min(1).optional(),
   captainId: z.string().min(1).nullable().optional(),
