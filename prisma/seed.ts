@@ -406,18 +406,25 @@ async function main() {
     ],
   });
 
-  // Match 5 — scheduled, course booked, nothing played yet
-  await createMatch({
+  // Match 5 — needs course selection: 3 of 4 players have submitted a
+  // pick, nobody has hit "Randomize" yet. Good live example for /courses.
+  const match5 = await createMatch({
     matchNumber: 5,
     pairingA: pairingsA[4]!,
     pairingB: pairingsB[4]!,
-    status: "SCHEDULED",
-    courseId: turnberry!.id,
-    scheduledDate: daysFromNow(4),
+    status: "COURSE_SELECTION",
     segments: [
       front9(null, undefined, undefined, "PENDING"),
       back9(null, undefined, undefined, "PENDING"),
       overall(null, undefined, undefined, "PENDING"),
+    ],
+  });
+  await prisma.courseSelection.createMany({
+    data: [
+      { matchId: match5.id, playerId: pairingsA[4]!.player1Id, courseId: turnberry!.id },
+      { matchId: match5.id, playerId: pairingsA[4]!.player2Id, courseId: turnberry!.id },
+      { matchId: match5.id, playerId: pairingsB[4]!.player1Id, courseId: champions!.id },
+      // pairingsB[4]'s second player hasn't submitted a pick yet
     ],
   });
 
@@ -452,19 +459,21 @@ async function main() {
     ],
   });
 
-  // Match 8 — scheduled, the last pairing on each team to get matched up
-  await createMatch({
+  // Match 8 — needs course selection: the last pairing on each team to get
+  // matched up, so only just now facing the course-pick step. One early pick in.
+  const match8 = await createMatch({
     matchNumber: 8,
     pairingA: pairingsA[7]!,
     pairingB: pairingsB[7]!,
-    status: "SCHEDULED",
-    courseId: mentel!.id,
-    scheduledDate: daysFromNow(9),
+    status: "COURSE_SELECTION",
     segments: [
       front9(null, undefined, undefined, "PENDING"),
       back9(null, undefined, undefined, "PENDING"),
       overall(null, undefined, undefined, "PENDING"),
     ],
+  });
+  await prisma.courseSelection.createMany({
+    data: [{ matchId: match8.id, playerId: pairingsA[7]!.player1Id, courseId: mentel!.id }],
   });
 
   console.log("Creating Round 2 and Championship placeholders...");
@@ -493,7 +502,7 @@ async function main() {
   console.log(`  Tournament: ${tournament.name} (${tournament.season})`);
   console.log(`  Players: ${players.length}`);
   console.log(`  Courses: ${courses.length}`);
-  console.log(`  Round 1 matches: 8 (3 complete, 2 in progress, 3 upcoming)`);
+  console.log(`  Round 1 matches: 8 (3 complete, 2 in progress, 3 upcoming: 1 scheduled + 2 need course selection)`);
 }
 
 main()
