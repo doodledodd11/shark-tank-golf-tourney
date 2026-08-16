@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { getActiveTournament, getAllPlayers, getRoundWithDetails } from "@/lib/data";
 import { getEligiblePlayersForRound } from "@/lib/player-status";
+import { getDraftBoardData } from "@/lib/draft";
+import { RoundSetupChoice } from "@/components/admin/round-setup-choice";
+import { LiveDraftAdminPanel } from "@/components/admin/live-draft-admin-panel";
 import { RoundRosterTool } from "@/components/admin/round-roster-tool";
 import { RoundPairingsManager } from "@/components/admin/round-pairings-manager";
 import { RoundMatchCreator } from "@/components/admin/round-match-creator";
@@ -19,6 +22,15 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
   const allPlayers = await getAllPlayers(tournament.id);
   const eligiblePlayers = getEligiblePlayersForRound(round, allPlayers);
 
+  const hasLiveDraftTokens = round.teams.some((t) => t.captainAccessToken);
+  const draftBoard = hasLiveDraftTokens ? await getDraftBoardData(round.id) : null;
+  const draftInProgress = Boolean(draftBoard && !draftBoard.isComplete);
+
+  const onTheClockTeam = draftBoard?.teams.find((t) => t.id === draftBoard.onTheClockTeamId);
+  const statusLabel = draftBoard?.currentTier
+    ? `Tier ${draftBoard.currentTier} of 4 — ${onTheClockTeam?.name ?? "?"}'s turn`
+    : "";
+
   return (
     <div className="max-w-5xl space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -33,13 +45,21 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
 
       <section>
         <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-700/50">1. Draft Teams</h2>
-        <p className="mb-3 text-xs text-ink-700/50">
-          Also how to fix a mis-assigned player later — toggle their side and save.
-        </p>
-        <RoundRosterTool roundId={round.id} teams={round.teams} eligiblePlayers={eligiblePlayers} />
+        {round.teams.length === 0 ? (
+          <RoundSetupChoice roundId={round.id} eligiblePlayers={eligiblePlayers} />
+        ) : draftInProgress ? (
+          <LiveDraftAdminPanel roundId={round.id} teams={round.teams} statusLabel={statusLabel} />
+        ) : (
+          <>
+            <p className="mb-3 text-xs text-ink-700/50">
+              Also how to fix a mis-assigned player later — toggle their side and save.
+            </p>
+            <RoundRosterTool roundId={round.id} teams={round.teams} eligiblePlayers={eligiblePlayers} />
+          </>
+        )}
       </section>
 
-      {round.teams.length > 0 && (
+      {round.teams.length > 0 && !draftInProgress && (
         <>
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">2. Pairings</h2>

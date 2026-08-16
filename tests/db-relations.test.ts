@@ -14,6 +14,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { completeRoundLogic } from "@/lib/round-completion";
 import { setRoundRostersLogic } from "@/lib/round-roster";
+import { startDraftLogic, submitDraftPickLogic, getDraftBoardData } from "@/lib/draft";
 
 const TEST_SEASON = 2099;
 const prisma = new PrismaClient();
@@ -345,4 +346,133 @@ describe("setRoundRostersLogic", () => {
     const unchangedPairing = await prisma.pairing.findUnique({ where: { id: pairing.id } });
     expect(unchangedPairing).not.toBeNull();
   });
+});
+
+describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
+  async function makeFullFieldRound() {
+    const tournament = await makeTournament();
+    const round = await prisma.round.create({
+      data: { tournamentId: tournament.id, number: 1, name: "Round 1", playersStart: 32, playersAdvance: 16 },
+    });
+    const byTier: Record<number, { id: string; tier: number }[]> = { 1: [], 2: [], 3: [], 4: [] };
+    for (let tier = 1; tier <= 4; tier++) {
+      for (let i = 0; i < 8; i++) {
+        const p = await prisma.player.create({
+          data: { tournamentId: tournament.id, name: `Draft T${tier}-${i}`, tier },
+        });
+        byTier[tier]!.push({ id: p.id, tier });
+      }
+    }
+    return { tournament, round, byTier };
+  }
+
+  it("seats both captains as their team's first pick and issues distinct tokens", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[1]![1]!;
+
+    const result = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    expect(result.success).toBe(true);
+    expect(result.tokens?.teamAToken).toBeTruthy();
+    expect(result.tokens?.teamBToken).toBeTruthy();
+    expect(result.tokens?.teamAToken).not.toBe(result.tokens?.teamBToken);
+
+    const teams = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" }, include: { memberships: true } });
+    expect(teams).toHaveLength(2);
+    expect(teams[0]!.captainId).toBe(captainA.id);
+    expect(teams[0]!.memberships.map((m) => m.playerId)).toEqual([captainA.id]);
+    expect(teams[1]!.captainId).toBe(captainB.id);
+    expect(teams[1]!.memberships.map((m) => m.playerId)).toEqual([captainB.id]);
+  });
+
+  it("refuses to start a draft with the same player as both captains", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const result = await startDraftLogic({
+      roundId: round.id,
+      captainAPlayerId: byTier[1]![0]!.id,
+      captainBPlayerId: byTier[1]![0]!.id,
+    });
+    expect(result.error).toBeTruthy();
+  });
+
+  it("refuses to start a draft on a round that already has a roster", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const teamA = await prisma.team.create({ data: { roundId: round.id, name: "Team A", order: 0 } });
+    await prisma.teamMembership.create({ data: { teamId: teamA.id, playerId: byTier[1]![0]!.id } });
+
+    const result = await startDraftLogic({
+      roundId: round.id,
+      captainAPlayerId: byTier[1]![1]!.id,
+      captainBPlayerId: byTier[1]![2]!.id,
+    });
+    expect(result.error).toBeTruthy();
+  });
+
+  // Longer timeout than the file default: this drives a full 32-player
+  // draft through ~30 sequential submitDraftPickLogic calls, each its own
+  // round trip to Postgres, and simulates a real multi-pick draft rather
+  // than mocking the loop away.
+  it("enforces turn order, tier restriction, and token validity, and runs a full draft to completion", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[1]![1]!;
+    const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    const teamAToken = started.tokens!.teamAToken;
+    const teamBToken = started.tokens!.teamBToken;
+
+    const board1 = await getDraftBoardData(round.id);
+    expect(board1!.currentTier).toBe(1);
+    expect(board1!.onTheClockTeamId).toBe(board1!.teams.find((t) => t.order === 0)!.id);
+
+    // Wrong team's turn.
+    const outOfTurn = await submitDraftPickLogic({
+      roundId: round.id,
+      captainToken: teamBToken,
+      playerId: byTier[1]![2]!.id,
+    });
+    expect(outOfTurn.error).toBeTruthy();
+
+    // Invalid token.
+    const badToken = await submitDraftPickLogic({ roundId: round.id, captainToken: "not-a-real-token", playerId: byTier[1]![2]!.id });
+    expect(badToken.error).toBeTruthy();
+
+    // Right team, wrong tier (tier 1 is active, this player is tier 2).
+    const wrongTier = await submitDraftPickLogic({ roundId: round.id, captainToken: teamAToken, playerId: byTier[2]![0]!.id });
+    expect(wrongTier.error).toBeTruthy();
+
+    // Drive the draft to completion by always asking the board who's on
+    // the clock and handing them the next available player in that tier.
+    let guard = 0;
+    for (;;) {
+      guard++;
+      if (guard > 100) throw new Error("draft simulation ran too long — likely stuck");
+      const board = await getDraftBoardData(round.id);
+      if (board!.isComplete) break;
+
+      const onTheClock = board!.teams.find((t) => t.id === board!.onTheClockTeamId)!;
+      const token = onTheClock.order === 0 ? teamAToken : teamBToken;
+      const pick = board!.undraftedPlayers.find((p) => p.tier === board!.currentTier)!;
+
+      const result = await submitDraftPickLogic({ roundId: round.id, captainToken: token, playerId: pick.id });
+      expect(result.success).toBe(true);
+    }
+
+    const finalBoard = await getDraftBoardData(round.id);
+    expect(finalBoard!.isComplete).toBe(true);
+    expect(finalBoard!.teams[0]!.roster).toHaveLength(16);
+    expect(finalBoard!.teams[1]!.roster).toHaveLength(16);
+    for (const team of finalBoard!.teams) {
+      for (let tier = 1; tier <= 4; tier++) {
+        expect(team.roster.filter((p) => p.tier === tier)).toHaveLength(4);
+      }
+    }
+
+    // The draft is over — no more picks accepted.
+    const afterComplete = await submitDraftPickLogic({
+      roundId: round.id,
+      captainToken: teamAToken,
+      playerId: finalBoard!.undraftedPlayers[0]?.id ?? "nonexistent",
+    });
+    expect(afterComplete.error).toBeTruthy();
+  }, 60_000);
 });

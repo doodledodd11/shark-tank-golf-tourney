@@ -166,6 +166,16 @@ model Team {
   captainId String?
   captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: SetNull)
 
+  // Set when a live draft is started for this round — the unguessable
+  // capability token that stands in for a captain login (the app has no
+  // player accounts anywhere else, and this doesn't need one either: only
+  // whoever holds the link can submit picks for this team). Left set after
+  // the draft completes; harmless since pick submission itself refuses
+  // once every tier is full. No separate "whose turn" field on purpose —
+  // that's derived from the actual roster every time (lib/draft-logic.ts),
+  // so it can't drift out of sync with reality the way a stored pointer could.
+  captainAccessToken String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
