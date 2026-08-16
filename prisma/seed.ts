@@ -84,71 +84,65 @@ async function main() {
   console.log("Creating approved courses...");
   const courseDefs = [
     {
-      name: "Fairway Pines Golf Club",
-      city: "Brookhaven",
+      name: "Airport Golf Course",
+      city: "Columbus",
       state: "OH",
-      website: "https://example.com/fairway-pines",
-      priceRange: "$45-60",
-      notes: "Classic parkland layout. Greens run fast in late summer.",
+      website: "https://crpdgolf.com/golf-courses/airport-golf-course/",
+      notes: "Par 72, redesigned in 2012, sits right next to John Glenn International Airport. Approachable for all skill levels.",
       approved: true,
       active: true,
     },
     {
-      name: "Blackthorn National",
-      city: "Millbrook",
+      name: "Champions Golf Course",
+      city: "Columbus",
       state: "OH",
-      website: "https://example.com/blackthorn",
-      priceRange: "$70-90",
-      notes: "The toughest track on the list — bring a couple extra balls off the tee.",
+      website: "https://crpdgolf.com/golf-courses/champions-golf-course/",
+      notes: "Par 70 with rolling fairways, mature trees, and hilly terrain — one of Central Ohio's more challenging public tracks.",
       approved: true,
       active: true,
     },
     {
-      name: "Red Hawk Ridge",
-      city: "Cedar Falls",
+      name: "Mentel Memorial Golf Course",
+      city: "Galloway",
       state: "OH",
-      website: "https://example.com/red-hawk-ridge",
-      priceRange: "$35-50",
-      notes: "Walkable, quick rounds. Good weekday tee time availability.",
+      website: "https://crpdgolf.com/golf-courses/mentel-memorial/",
+      notes: "Jack Kidwell-designed championship course with three lakes and 44 bunkers. Five tee options to fit any skill level.",
       approved: true,
       active: true,
     },
     {
-      name: "Lakeside Municipal",
-      city: "Lakeside",
+      name: "Raymond Memorial Golf Course",
+      city: "Columbus",
       state: "OH",
-      website: "https://example.com/lakeside-muni",
-      priceRange: "$25-35",
-      notes: "Budget-friendly with generous fairways — a good back-nine shamble course.",
+      website: "https://crpdgolf.com/golf-courses/raymond-memorial/",
+      notes: "Robert Trent Jones Sr. design known for its twin par-3 holes and elevated, bunker-guarded greens.",
       approved: true,
       active: true,
     },
     {
-      name: "The Quarry at Stonecrest",
-      city: "Ashworth",
+      name: "Turnberry Golf Course",
+      city: "Pickerington",
       state: "OH",
-      website: "https://example.com/stonecrest",
-      priceRange: "$60-80",
-      notes: "Signature par-3 plays over the old quarry pit. Book 2 weeks out.",
+      website: "https://crpdgolf.com/golf-courses/turnberry-golf-course/",
+      notes: "Arthur Hills links-style design along Blacklick Creek, with fescue grasses and several lakes.",
       approved: true,
       active: true,
     },
     {
-      name: "Windemere Golf & Country Club",
-      city: "Harborview",
+      name: "Royal American Links Golf Club",
+      city: "Galena",
       state: "OH",
-      website: "https://example.com/windemere",
-      priceRange: "$55-70",
-      notes: "Private-feel public course. Deactivated this season — call ahead only.",
+      website: "https://foreupsoftware.com/index.php/booking/19279/1377#teetimes",
+      notes: "Scottish links-style design (Hurdzan/Schreiner, 1990) with water in play on nearly every hole. Signature par-3 12th plays to a rock-walled green.",
       approved: true,
-      active: false,
+      active: true,
     },
   ];
   const courses = [];
   for (const c of courseDefs) {
     courses.push(await prisma.course.create({ data: { tournamentId: tournament.id, ...c } }));
   }
-  const [pines, blackthorn, redHawk, lakeside, quarry] = courses;
+  const [airport, champions, mentel, raymond, turnberry, royalAmerican] = courses;
 
   // ------------------------------------------------------------------
   // Round 1 — 32 to 16
@@ -323,7 +317,7 @@ async function main() {
     pairingA: pairingsA[0]!,
     pairingB: pairingsB[0]!,
     status: "COMPLETE",
-    courseId: pines!.id,
+    courseId: airport!.id,
     scheduledDate: daysFromNow(-6),
     gameBookLeaderboardUrl: "https://example.com/gamebook/leaderboard/round1-match1",
     segments: [front9("A", 32, 35), back9("B", 37, 33), overall("A", 69, 70)],
@@ -335,7 +329,7 @@ async function main() {
     pairingA: pairingsA[1]!,
     pairingB: pairingsB[1]!,
     status: "COMPLETE",
-    courseId: redHawk!.id,
+    courseId: raymond!.id,
     scheduledDate: daysFromNow(-6),
     segments: [front9("B", 36, 33), back9("B", 38, 34), overall("B", 74, 67)],
   });
@@ -346,7 +340,7 @@ async function main() {
     pairingA: pairingsA[2]!,
     pairingB: pairingsB[2]!,
     status: "COMPLETE",
-    courseId: pines!.id,
+    courseId: airport!.id,
     scheduledDate: daysFromNow(-4),
     segments: [front9("TIE", 34, 34), back9("A", 35, 38), overall("B", 71, 70)],
   });
@@ -357,7 +351,7 @@ async function main() {
     pairingA: pairingsA[3]!,
     pairingB: pairingsB[3]!,
     status: "IN_PROGRESS",
-    courseId: blackthorn!.id,
+    courseId: champions!.id,
     scheduledDate: daysFromNow(-1),
     gameBookEventUrl: "https://example.com/gamebook/round1-match4",
     segments: [
@@ -373,7 +367,7 @@ async function main() {
     pairingA: pairingsA[4]!,
     pairingB: pairingsB[4]!,
     status: "SCHEDULED",
-    courseId: lakeside!.id,
+    courseId: turnberry!.id,
     scheduledDate: daysFromNow(4),
     segments: [
       front9(null, undefined, undefined, "PENDING"),
@@ -388,7 +382,7 @@ async function main() {
     pairingA: pairingsA[5]!,
     pairingB: pairingsB[5]!,
     status: "IN_PROGRESS",
-    courseId: quarry!.id,
+    courseId: royalAmerican!.id,
     scheduledDate: daysFromNow(-1),
     segments: [
       front9("B", 34, 32),
@@ -403,7 +397,7 @@ async function main() {
     pairingA: pairingsA[6]!,
     pairingB: pairingsB[6]!,
     status: "SCHEDULED",
-    courseId: blackthorn!.id,
+    courseId: champions!.id,
     scheduledDate: daysFromNow(6),
     gameBookEventUrl: "https://example.com/gamebook/round1-match7",
     segments: [
@@ -419,7 +413,7 @@ async function main() {
     pairingA: pairingsA[7]!,
     pairingB: pairingsB[7]!,
     status: "SCHEDULED",
-    courseId: redHawk!.id,
+    courseId: mentel!.id,
     scheduledDate: daysFromNow(9),
     segments: [
       front9(null, undefined, undefined, "PENDING"),
