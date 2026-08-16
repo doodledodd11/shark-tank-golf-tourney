@@ -1,10 +1,8 @@
 // Development seed data. Run with `npm run db:seed` (or automatically via
 // `npm run db:reset`). Produces a believable mid-Round-1 snapshot: a full
-// 32-player field, a completed draft, locked pairings, and matches in a mix
-// of states (complete / in progress / scheduled / mid course-selection) —
-// including one pairing on each team that hasn't been matched up yet, to
-// show the alternating matchmaking process still in flight, exactly like a
-// real mid-tournament night would look.
+// 32-player field, a completed draft, locked pairings, and all 8 Round 1
+// matches already made — a mix of complete, in-progress, and upcoming, so
+// every match in the round falls cleanly into one of those three states.
 import { PrismaClient, type Player, type Pairing } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -384,25 +382,18 @@ async function main() {
     ],
   });
 
-  // Match 6 — mid course-selection: 3 of 4 players have submitted a pick,
-  // nobody has hit "Randomize" yet. Great live example for /courses.
-  const match6 = await createMatch({
+  // Match 6 — in progress: front 9 decided, back 9 and overall still to play
+  await createMatch({
     matchNumber: 6,
     pairingA: pairingsA[5]!,
     pairingB: pairingsB[5]!,
-    status: "COURSE_SELECTION",
+    status: "IN_PROGRESS",
+    courseId: quarry!.id,
+    scheduledDate: daysFromNow(-1),
     segments: [
-      front9(null, undefined, undefined, "PENDING"),
+      front9("B", 34, 32),
       back9(null, undefined, undefined, "PENDING"),
       overall(null, undefined, undefined, "PENDING"),
-    ],
-  });
-  await prisma.courseSelection.createMany({
-    data: [
-      { matchId: match6.id, playerId: pairingsA[5]!.player1Id, courseId: quarry!.id },
-      { matchId: match6.id, playerId: pairingsA[5]!.player2Id, courseId: quarry!.id },
-      { matchId: match6.id, playerId: pairingsB[5]!.player1Id, courseId: redHawk!.id },
-      // pairingsB[5]'s second player hasn't submitted a pick yet
     ],
   });
 
@@ -422,9 +413,20 @@ async function main() {
     ],
   });
 
-  // pairingsA[7] and pairingsB[7] are intentionally left unmatched — each
-  // team still has one locked pair waiting for the alternating matchmaking
-  // process to assign it an opponent (Match 8 hasn't been made yet).
+  // Match 8 — scheduled, the last pairing on each team to get matched up
+  await createMatch({
+    matchNumber: 8,
+    pairingA: pairingsA[7]!,
+    pairingB: pairingsB[7]!,
+    status: "SCHEDULED",
+    courseId: redHawk!.id,
+    scheduledDate: daysFromNow(9),
+    segments: [
+      front9(null, undefined, undefined, "PENDING"),
+      back9(null, undefined, undefined, "PENDING"),
+      overall(null, undefined, undefined, "PENDING"),
+    ],
+  });
 
   console.log("Creating Round 2 and Championship placeholders...");
   await prisma.round.create({
@@ -452,7 +454,7 @@ async function main() {
   console.log(`  Tournament: ${tournament.name} (${tournament.season})`);
   console.log(`  Players: ${players.length}`);
   console.log(`  Courses: ${courses.length}`);
-  console.log(`  Round 1 matches: 7 scheduled, 1 pairing per team still unmatched`);
+  console.log(`  Round 1 matches: 8 (3 complete, 2 in progress, 3 upcoming)`);
 }
 
 main()
