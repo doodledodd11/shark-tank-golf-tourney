@@ -12,6 +12,7 @@
 // so nothing lingers in the shared dev database between runs.
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { completeRoundLogic } from "@/lib/round-completion";
 
 const TEST_SEASON = 2099;
 const prisma = new PrismaClient();
@@ -145,5 +146,126 @@ describe("pairings belong to the correct team and round", () => {
 
     const teamAPairings = await prisma.pairing.findMany({ where: { teamId: teamA.id } });
     expect(teamAPairings).toHaveLength(1);
+  });
+});
+
+describe("completeRoundLogic", () => {
+  // "A"/"B" for scoring purposes is entirely positional: round.teams
+  // ordered by `order asc` (round.teams[0] is "A", [1] is "B"), regardless
+  // of a Match's own teamAId/teamBId (cosmetic/display only — completeRoundLogic
+  // never reads them) or of row-insertion order. So team "A" is deliberately
+  // created *second* here — a regression that drops the
+  // `orderBy: { order: "asc" }` on the teams query would fall back to
+  // insertion order and misattribute status to the wrong team.
+  async function makeRoundWithDecidedMatch(roundNumber: number, winner: "A" | "B") {
+    const tournament = await makeTournament();
+    const round = await prisma.round.create({
+      data: {
+        tournamentId: tournament.id,
+        number: roundNumber,
+        name: roundNumber === 3 ? "Championship" : `Round ${roundNumber}`,
+        playersStart: 8,
+        playersAdvance: 4,
+      },
+    });
+
+    const teamB = await prisma.team.create({ data: { roundId: round.id, name: "Team B", order: 1 } });
+    const teamA = await prisma.team.create({ data: { roundId: round.id, name: "Team A", order: 0 } });
+    const winningTeam = winner === "A" ? teamA : teamB;
+    const losingTeam = winner === "A" ? teamB : teamA;
+
+    const [p1, p2, p3, p4] = await Promise.all([
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Winner 1", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Winner 2", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Loser 1", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Loser 2", tier: 1 } }),
+    ]);
+    await prisma.teamMembership.createMany({
+      data: [
+        { teamId: winningTeam.id, playerId: p1.id },
+        { teamId: winningTeam.id, playerId: p2.id },
+        { teamId: losingTeam.id, playerId: p3.id },
+        { teamId: losingTeam.id, playerId: p4.id },
+      ],
+    });
+
+    const match = await prisma.match.create({
+      data: { roundId: round.id, matchNumber: 1, teamAId: teamA.id, teamBId: teamB.id },
+    });
+    await prisma.matchSegment.create({
+      data: { matchId: match.id, name: "Overall 18", format: "SCRAMBLE", pointsAvailable: 1, winner },
+    });
+
+    return { tournament, round, winningPlayerIds: [p1.id, p2.id], losingPlayerIds: [p3.id, p4.id] };
+  }
+
+  it("eliminates the losing side and leaves the winning side active, for a normal round", async () => {
+    const { tournament, round, winningPlayerIds, losingPlayerIds } = await makeRoundWithDecidedMatch(1, "B");
+
+    const result = await completeRoundLogic(round.id);
+    expect(result).toEqual({ success: true });
+
+    const updatedRound = await prisma.round.findUniqueOrThrow({ where: { id: round.id } });
+    expect(updatedRound.status).toBe("COMPLETE");
+
+    const unchangedTournament = await prisma.tournament.findUniqueOrThrow({ where: { id: tournament.id } });
+    expect(unchangedTournament.status).toBe("REGISTRATION");
+
+    const winners = await prisma.player.findMany({ where: { id: { in: winningPlayerIds } } });
+    for (const p of winners) {
+      expect(p.status).toBe("ACTIVE");
+      expect(p.eliminatedRound).toBeNull();
+    }
+
+    const losers = await prisma.player.findMany({ where: { id: { in: losingPlayerIds } } });
+    for (const p of losers) {
+      expect(p.status).toBe("ELIMINATED");
+      expect(p.eliminatedRound).toBe(1);
+    }
+  });
+
+  it("crowns the winning side champion and eliminates the runner-up, for the championship round", async () => {
+    const { tournament, round, winningPlayerIds, losingPlayerIds } = await makeRoundWithDecidedMatch(3, "A");
+
+    const result = await completeRoundLogic(round.id);
+    expect(result).toEqual({ success: true });
+
+    const updatedRound = await prisma.round.findUniqueOrThrow({ where: { id: round.id } });
+    expect(updatedRound.status).toBe("COMPLETE");
+
+    const completedTournament = await prisma.tournament.findUniqueOrThrow({ where: { id: tournament.id } });
+    expect(completedTournament.status).toBe("COMPLETE");
+
+    const champions = await prisma.player.findMany({ where: { id: { in: winningPlayerIds } } });
+    for (const p of champions) {
+      expect(p.status).toBe("CHAMPION");
+    }
+
+    const runnersUp = await prisma.player.findMany({ where: { id: { in: losingPlayerIds } } });
+    for (const p of runnersUp) {
+      expect(p.status).toBe("ELIMINATED");
+      expect(p.eliminatedRound).toBe(3);
+    }
+  });
+
+  it("refuses to complete a tied round with no playoff match recorded", async () => {
+    const tournament = await makeTournament();
+    const round = await prisma.round.create({
+      data: { tournamentId: tournament.id, number: 1, name: "Round 1", playersStart: 8, playersAdvance: 4 },
+    });
+    const teamA = await prisma.team.create({ data: { roundId: round.id, name: "Team A", order: 0 } });
+    const teamB = await prisma.team.create({ data: { roundId: round.id, name: "Team B", order: 1 } });
+    const match = await prisma.match.create({
+      data: { roundId: round.id, matchNumber: 1, teamAId: teamA.id, teamBId: teamB.id },
+    });
+    await prisma.matchSegment.create({
+      data: { matchId: match.id, name: "Overall 18", format: "SCRAMBLE", pointsAvailable: 1, winner: "TIE" },
+    });
+
+    const result = await completeRoundLogic(round.id);
+    expect(result.error).toBeTruthy();
+
+    const unchangedRound = await prisma.round.findUniqueOrThrow({ where: { id: round.id } });
+    expect(unchangedRound.status).toBe("PENDING");
   });
 });

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 // instead of crashing.
 const FALLBACK_TOURNAMENT = {
   id: "",
-  name: "Poker Club Golf Invitational",
+  name: "Shark Tank Golf Invitational",
   subtitle: "32 Players. Four Tiers. Draft Your Team. Win Your Matches. Survive.",
   season: new Date().getFullYear(),
   status: "REGISTRATION" as const,
@@ -60,6 +60,7 @@ export const getRoundsWithDetails = cache(async (tournamentId: string) => {
     orderBy: { number: "asc" },
     include: {
       teams: {
+        orderBy: { order: "asc" },
         include: {
           captain: true,
           memberships: {
@@ -99,6 +100,7 @@ export const getRoundWithDetails = cache(async (roundId: string) => {
     where: { id: roundId },
     include: {
       teams: {
+        orderBy: { order: "asc" },
         include: {
           captain: true,
           memberships: {

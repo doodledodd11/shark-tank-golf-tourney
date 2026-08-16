@@ -15,11 +15,20 @@ function optionalText(value: FormDataEntryValue | null): string | null {
   return s === "" ? null : s;
 }
 
+// Rendered directly as an <a href> on the public course list — restricting
+// to http/https (rather than accepting any string) keeps a compromised or
+// mistyped admin submission from becoming a javascript: URL.
+const websiteSchema = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^https?:\/\//i.test(v), "Website must start with http:// or https://")
+  .optional();
+
 const courseSchema = z.object({
-  name: z.string().min(1, "Course name is required"),
+  name: z.string().trim().min(1, "Course name is required"),
   city: z.string().optional(),
   state: z.string().optional(),
-  website: z.string().optional(),
+  website: websiteSchema,
   priceRange: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -43,7 +52,7 @@ export async function createCourse(_prevState: FormState, formData: FormData): P
       name: parsed.data.name,
       city: optionalText(formData.get("city")),
       state: optionalText(formData.get("state")),
-      website: optionalText(formData.get("website")),
+      website: parsed.data.website || null,
       priceRange: optionalText(formData.get("priceRange")),
       notes: optionalText(formData.get("notes")),
       approved: true,
@@ -68,7 +77,7 @@ export async function updateCourse(_prevState: FormState, formData: FormData): P
       name: parsed.data.name,
       city: optionalText(formData.get("city")),
       state: optionalText(formData.get("state")),
-      website: optionalText(formData.get("website")),
+      website: parsed.data.website || null,
       priceRange: optionalText(formData.get("priceRange")),
       notes: optionalText(formData.get("notes")),
     },
@@ -86,10 +95,19 @@ export async function toggleCourseActive(courseId: string, active: boolean): Pro
 
 export async function deleteCourse(courseId: string): Promise<void> {
   await requireAdminSession();
+  // Match.courseId is ON DELETE SET NULL (a match shouldn't vanish just
+  // because its course did), so Postgres won't stop this delete on its own
+  // if a match still references the course — check explicitly instead.
+  // CourseSelection.courseId *is* still a genuine RESTRICT, so the catch
+  // below remains a real (if secondary) safety net for that case.
+  const referencingMatch = await prisma.match.findFirst({ where: { courseId } });
+  if (referencingMatch) {
+    throw new Error("Can't delete a course already linked to a match — mark it inactive instead.");
+  }
   try {
     await prisma.course.delete({ where: { id: courseId } });
   } catch {
-    throw new Error("Can't delete a course already linked to a match — mark it inactive instead.");
+    throw new Error("Can't delete a course that players have already selected for a match.");
   }
   revalidateCoursePages();
 }

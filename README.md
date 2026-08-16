@@ -1,4 +1,4 @@
-# Poker Club Golf Invitational
+# Shark Tank Golf Invitational
 
 A public-facing tournament website for a tiered, match-play golf championship
 run for a local poker club. 32 golfers, four skill tiers, a two-phase draft
@@ -57,6 +57,7 @@ script. To manage it, sign in at
 | `npm test` / `npm run test:watch` | Run the Vitest suite once / in watch mode |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run db:generate` | Regenerate the Prisma Client after a schema change (also runs automatically via `postinstall`) |
 | `npm run db:migrate` | Apply/create Prisma migrations locally |
 | `npm run db:push` | Push schema changes without a migration (prototyping only) |
 | `npm run db:seed` | Wipe and repopulate the database with demo data |
@@ -241,8 +242,9 @@ Copy `.env.example` to `.env` and fill in real values. **Never commit
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | Postgres connection string (use the pooled `-pooler` host). Your local `.env` should point at the Neon **development** branch; Vercel's Production environment variable should point at the **production** branch. Never the same value in both places. |
-| `ADMIN_PASSWORD` | yes | Plaintext password checked server-side for `/admin` access. Pick something long — it's compared with a constant-time comparison, but only the password's strength stops brute-forcing. Use a different value locally vs. in production. |
+| `DATABASE_URL` | yes | Postgres connection string (use the pooled `-pooler` host — this is what the running app queries through). Your local `.env` should point at the Neon **development** branch; Vercel's Production environment variable should point at the **production** branch. Never the same value in both places. |
+| `DIRECT_URL` | yes | The *same* host as `DATABASE_URL`, minus `-pooler` — a direct, non-pooled connection used only by `prisma migrate` (see [Migrations](#migrations) for why the pooled connection isn't reliable for that). Same per-environment pairing as `DATABASE_URL`. |
+| `ADMIN_PASSWORD` | yes | Plaintext password checked server-side for `/admin` access. Pick something long — it's compared via a fixed-length hash and a constant-time comparison, but only the password's strength stops brute-forcing (a simple in-memory rate limit on login attempts also applies — see `lib/rate-limit.ts`). Use a different value locally vs. in production. |
 | `SESSION_SECRET` | yes | Random secret used to sign the admin session cookie. Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Use a different value locally vs. in production. |
 
 None of these are ever sent to the browser — `ADMIN_PASSWORD` and
@@ -262,9 +264,12 @@ none of which bundle into client JavaScript.
    (dashboard: **Branches → Create branch**, or `neonctl branches create
    --name development`). You now have `production` (the default branch) and
    `development`.
-3. Grab the **pooled** connection string for the `development` branch
-   (dashboard: **Connect**, or `neonctl connection-string development
-   --pooled`) and put it in your local `.env` as `DATABASE_URL`.
+3. Grab **two** connection strings for the `development` branch: the
+   **pooled** one (dashboard: **Connect**, or `neonctl connection-string
+   development --pooled`) goes in your local `.env` as `DATABASE_URL`; the
+   same command *without* `--pooled` (or just drop `-pooler` from the
+   host) goes in as `DIRECT_URL`. See [Migrations](#migrations) for why
+   both exist.
 4. `npm run db:migrate` to apply the schema, then `npm run db:seed`.
 
 ### Local development
@@ -305,14 +310,24 @@ both Neon branches. When you change `prisma/schema.prisma`:
 npm run db:migrate -- --name describe_your_change
 ```
 
-This applies the migration to whatever `DATABASE_URL` your `.env` points at
-(the `development` branch, normally) and creates a new migration file —
-commit that file. Once you're happy with the change, apply the exact same
-migration to production:
+This applies the migration to whatever `DATABASE_URL`/`DIRECT_URL` your
+`.env` points at (the `development` branch, normally) and creates a new
+migration file — commit that file. Once you're happy with the change,
+apply the exact same migration to production:
 
 ```bash
-DATABASE_URL="<production-pooled-connection-string>" npx prisma migrate deploy
+DATABASE_URL="<production-pooled-connection-string>" DIRECT_URL="<production-direct-connection-string>" npx prisma migrate deploy
 ```
+
+**Why both a pooled and a direct URL:** Neon's pooled `-pooler` connection
+routes through PgBouncer in transaction-pooling mode, which recycles the
+underlying Postgres connection between statements. That's exactly what you
+want for a running app's ordinary queries, but it breaks things Prisma's
+migration engine relies on — prepared statements and session-level advisory
+locks — since those need one connection held for the whole operation.
+`directUrl` in `prisma/schema.prisma` is what tells the Prisma *CLI*
+specifically to bypass the pooler; the running app (`lib/db.ts`) only ever
+uses the pooled `url`.
 
 `migrate deploy` (unlike `migrate dev`) never prompts and never resets data
 — it's the only migration command that should ever touch production.
@@ -382,6 +397,13 @@ trigger.
 npm test          # run once
 npm run test:watch
 ```
+
+`.github/workflows/ci.yml` runs typecheck, lint, tests, and a production
+build on every push to `main` and every pull request, against a throwaway
+Postgres service container (not either real Neon branch). Vercel's own
+auto-deploy-on-push doesn't gate on any of this — it only fails a build
+that breaks `next build` itself — so this is what actually catches a
+regression before it reaches main.
 
 Two suites, both under `tests/`:
 
@@ -454,10 +476,14 @@ components/
 lib/
   actions/                 Every Server Action ("use server"), grouped by entity
   data.ts                  All Prisma read queries, wrapped in React cache()
+  db.ts                    Prisma Client singleton (dev hot-reload safe)
   auth.ts, dal.ts          Session signing/verification, the DAL guard
+  rate-limit.ts            Best-effort in-memory limiter for admin login attempts
   tournament-logic.ts      Pure scoring/randomization math (unit tested)
   constants.ts             Every status/format union + display labels
   formats.ts, segment-templates.ts, rules-content.ts   Shared copy/config
+  site-config.ts           Host club branding (name/logo/URL) — site identity, not tournament data
+  nav.ts, admin-nav.ts     Public/admin navigation link lists
   player-status.ts         Derived "current team/partner/eligibility" logic
   match-helpers.ts, format.ts, utils.ts   Small display/formatting helpers
 prisma/
@@ -496,9 +522,9 @@ just a suggested path):
      access; without it, deploys are triggered manually with `vercel --prod`
      instead of automatically on push.
 3. **Environment variables**, set per-environment via `vercel env add
-   <NAME> production` (or the dashboard): `DATABASE_URL` (the
-   **production** Neon branch's pooled connection string —
-   *not* the same one your local `.env` uses), `ADMIN_PASSWORD`, and
+   <NAME> production` (or the dashboard): `DATABASE_URL` and `DIRECT_URL`
+   (the **production** Neon branch's pooled and direct connection strings —
+   *not* the same ones your local `.env` uses), `ADMIN_PASSWORD`, and
    `SESSION_SECRET`. Use different values than your local `.env` for the
    latter two.
 4. **`.vercelignore`** excludes `.env`/`.env.local` explicitly. This

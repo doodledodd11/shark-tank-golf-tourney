@@ -81,8 +81,19 @@ export async function verifySessionToken(token: string | undefined | null): Prom
   }
 }
 
-export function checkAdminPassword(password: string): boolean {
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return toHex(digest);
+}
+
+export async function checkAdminPassword(password: string): Promise<boolean> {
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;
-  return constantTimeEqual(password, expected);
+  // Hash both sides to a fixed 64-character digest before comparing, so
+  // constantTimeEqual's own length check (necessarily its first move)
+  // can't leak the real password's length via response timing — a
+  // password and its digest carry the same information either way, but
+  // only the digest is a fixed size regardless of input.
+  const [hashedPassword, hashedExpected] = await Promise.all([sha256Hex(password), sha256Hex(expected)]);
+  return constantTimeEqual(hashedPassword, hashedExpected);
 }

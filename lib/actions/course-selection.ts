@@ -28,11 +28,17 @@ function revalidatePublicPages() {
 export async function submitCourseSelection(input: { matchId: string; playerId: string; courseId: string }) {
   const data = selectionSchema.parse(input);
 
-  const participant = await prisma.matchParticipant.findUnique({
-    where: { matchId_playerId: { matchId: data.matchId, playerId: data.playerId } },
-  });
+  const [participant, course] = await Promise.all([
+    prisma.matchParticipant.findUnique({
+      where: { matchId_playerId: { matchId: data.matchId, playerId: data.playerId } },
+    }),
+    prisma.course.findUnique({ where: { id: data.courseId } }),
+  ]);
   if (!participant) {
     throw new Error("That player isn't one of the four in this match.");
+  }
+  if (!course || !course.active || !course.approved) {
+    throw new Error("That course isn't currently available for selection.");
   }
 
   await prisma.courseSelection.upsert({
@@ -50,6 +56,9 @@ export async function randomizeMatchCourse(matchId: string): Promise<{ courseId:
     prisma.match.findUnique({ where: { id: matchId } }),
   ]);
   if (!match) throw new Error("Match not found.");
+  if (match.courseId) {
+    throw new Error("This match already has an official course — the draw can only run once.");
+  }
   if (selections.length === 0) throw new Error("No course selections have been submitted yet.");
 
   const winnerId = pickRandomCourse(selections.map((s) => ({ courseId: s.courseId })));

@@ -25,7 +25,7 @@ function optionalFloat(value: FormDataEntryValue | null): number | null {
 
 const createSchema = z.object({
   tournamentId: z.string().min(1),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().trim().min(1, "Name is required"),
   tier: z.coerce.number().int().min(1).max(4),
 });
 
@@ -53,7 +53,7 @@ export async function createPlayer(_prevState: FormState, formData: FormData): P
 
 const updateSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().trim().min(1, "Name is required"),
   tier: z.coerce.number().int().min(1).max(4),
   status: z.enum(PLAYER_STATUSES),
 });
@@ -86,6 +86,16 @@ export async function updatePlayer(_prevState: FormState, formData: FormData): P
 
 export async function deletePlayer(playerId: string): Promise<void> {
   await requireAdminSession();
+  // The admin UI only shows the delete button during Registration (before
+  // a player could be on any team/pairing/match) — but that's a page-level
+  // gate, not enforcement, and this action is directly POST-able. Check it
+  // here too, matching the same "checks close to the data" reasoning the
+  // rest of the admin actions already follow.
+  const player = await prisma.player.findUnique({ where: { id: playerId }, include: { tournament: true } });
+  if (!player) return;
+  if (player.tournament.status !== "REGISTRATION") {
+    throw new Error("Players can only be removed while the tournament is still in Registration.");
+  }
   await prisma.player.delete({ where: { id: playerId } });
   revalidatePath("/", "layout");
 }

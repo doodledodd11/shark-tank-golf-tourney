@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
@@ -9,6 +9,7 @@ import {
   checkAdminPassword,
   createSessionToken,
 } from "@/lib/auth";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export interface LoginState {
   error?: string;
@@ -19,11 +20,19 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
   const from = formData.get("from");
   const redirectTo = typeof from === "string" && from.startsWith("/admin") && from !== "/admin/login" ? from : "/admin";
 
+  // Keyed on IP (best-effort — see lib/rate-limit.ts for what this can and
+  // can't actually guarantee on serverless). Fall back to a shared key
+  // rather than skipping the check entirely if the header is ever missing.
+  const clientIp = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (isRateLimited(clientIp)) {
+    return { error: "Too many attempts — wait a few minutes and try again." };
+  }
+
   if (typeof password !== "string" || password.length === 0) {
     return { error: "Enter the admin password." };
   }
 
-  if (!checkAdminPassword(password)) {
+  if (!(await checkAdminPassword(password))) {
     return { error: "Incorrect password." };
   }
 

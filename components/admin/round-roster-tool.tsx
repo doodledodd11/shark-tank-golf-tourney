@@ -96,7 +96,13 @@ function RosterAssignmentGrid({
     const teamAPlayerIds = eligiblePlayers.filter((p) => assignments.get(p.id) === "A").map((p) => p.id);
     const teamBPlayerIds = eligiblePlayers.filter((p) => assignments.get(p.id) === "B").map((p) => p.id);
     startTransition(async () => {
-      const result = await setRoundRosters({ teamAId: teamA.id, teamBId: teamB.id, teamAPlayerIds, teamBPlayerIds });
+      const result = await setRoundRosters({
+        roundId: teamA.roundId,
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        teamAPlayerIds,
+        teamBPlayerIds,
+      });
       setMessage(result.error ?? "Rosters saved.");
     });
   }

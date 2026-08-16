@@ -42,11 +42,18 @@ export async function createPairing(_prevState: FormState, formData: FormData): 
 
 export async function deletePairing(pairingId: string): Promise<void> {
   await requireAdminSession();
-  try {
-    await prisma.pairing.delete({ where: { id: pairingId } });
-  } catch {
+  // Match.pairingAId/pairingBId are ON DELETE SET NULL (so that deleting a
+  // match doesn't cascade into deleting the pairing it used) — which means
+  // Postgres will *not* stop this delete on its own if a match still
+  // references this pairing; it would just silently null the match out
+  // from under itself. So the guard has to happen here, explicitly.
+  const referencingMatch = await prisma.match.findFirst({
+    where: { OR: [{ pairingAId: pairingId }, { pairingBId: pairingId }] },
+  });
+  if (referencingMatch) {
     throw new Error("Can't delete a pairing that's already been matched into a match — delete the match first.");
   }
+  await prisma.pairing.delete({ where: { id: pairingId } });
   revalidateAll();
 }
 

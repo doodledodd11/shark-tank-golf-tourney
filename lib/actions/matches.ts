@@ -26,6 +26,20 @@ async function nextMatchNumber(roundId: string): Promise<number> {
   return count + 1;
 }
 
+/** A player already scheduled in another match this round, if any — the
+ * guard against a stale pairing or a "Pick Players" mis-click putting
+ * someone in two matches at once, which would silently double-count their
+ * result in the round's point totals (and whichever elimination decision
+ * those totals drive). Returns the player's name for the error message,
+ * or null if the whole set is clear. */
+async function findDoubleBookedPlayer(roundId: string, playerIds: string[]): Promise<string | null> {
+  const existing = await prisma.matchParticipant.findFirst({
+    where: { playerId: { in: playerIds }, match: { roundId } },
+    include: { player: true },
+  });
+  return existing?.player.name ?? null;
+}
+
 const fromPairingsSchema = z.object({
   roundId: z.string().min(1),
   teamAId: z.string().min(1),
@@ -47,6 +61,14 @@ export async function createMatchFromPairings(_prevState: FormState, formData: F
     prisma.pairing.findUnique({ where: { id: data.pairingBId } }),
   ]);
   if (!pairingA || !pairingB) return { error: "Pairing not found." };
+
+  const doubleBooked = await findDoubleBookedPlayer(data.roundId, [
+    pairingA.player1Id,
+    pairingA.player2Id,
+    pairingB.player1Id,
+    pairingB.player2Id,
+  ]);
+  if (doubleBooked) return { error: `${doubleBooked} is already in another match this round.` };
 
   const matchNumber = await nextMatchNumber(data.roundId);
   const segments = SEGMENT_TEMPLATES[data.template];
@@ -106,6 +128,9 @@ export async function createMatchFromPlayers(formData: FormData): Promise<FormSt
     return { error: "Both sides need the same number of players." };
   }
 
+  const doubleBooked = await findDoubleBookedPlayer(data.roundId, [...sideAIds, ...sideBIds]);
+  if (doubleBooked) return { error: `${doubleBooked} is already in another match this round.` };
+
   const matchNumber = await nextMatchNumber(data.roundId);
   const segments = SEGMENT_TEMPLATES[data.template];
 
@@ -137,14 +162,23 @@ export async function deleteMatch(matchId: string): Promise<void> {
   revalidateAll();
 }
 
+// Rendered directly as an <a href> (the "Follow Match Live" button) — see
+// the matching comment in lib/actions/courses.ts for why these are
+// restricted to http/https rather than accepting any string.
+const linkSchema = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^https?:\/\//i.test(v), "Links must start with http:// or https://")
+  .optional();
+
 const updateMatchSchema = z.object({
   id: z.string().min(1),
   courseId: z.string().optional(),
   scheduledDate: z.string().optional(),
   status: z.enum(MATCH_STATUSES),
-  gameBookEventUrl: z.string().optional(),
-  gameBookLeaderboardUrl: z.string().optional(),
-  externalScoringUrl: z.string().optional(),
+  gameBookEventUrl: linkSchema,
+  gameBookLeaderboardUrl: linkSchema,
+  externalScoringUrl: linkSchema,
   notes: z.string().optional(),
 });
 
@@ -160,9 +194,9 @@ export async function updateMatchDetails(_prevState: FormState, formData: FormDa
       courseId: optionalText(formData.get("courseId")),
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
       status: data.status,
-      gameBookEventUrl: optionalText(formData.get("gameBookEventUrl")),
-      gameBookLeaderboardUrl: optionalText(formData.get("gameBookLeaderboardUrl")),
-      externalScoringUrl: optionalText(formData.get("externalScoringUrl")),
+      gameBookEventUrl: data.gameBookEventUrl || null,
+      gameBookLeaderboardUrl: data.gameBookLeaderboardUrl || null,
+      externalScoringUrl: data.externalScoringUrl || null,
       notes: optionalText(formData.get("notes")),
     },
   });

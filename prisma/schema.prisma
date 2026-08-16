@@ -35,7 +35,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // The app's own queries go through DATABASE_URL, Neon's pooled ("-pooler")
+  // connection — fine for ordinary queries, but Prisma's migration engine
+  // needs a real session-scoped connection (advisory locks, prepared
+  // statements) that a PgBouncer transaction-mode pooler doesn't reliably
+  // provide. directUrl (Neon's non-pooled host) is what `prisma migrate`
+  // actually connects through; the pooled url is what the running app uses.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // --------------------------------------------------------------------------
@@ -43,7 +50,7 @@ datasource db {
 // --------------------------------------------------------------------------
 model Tournament {
   id       String @id @default(cuid())
-  name     String @default("Poker Club Golf Invitational")
+  name     String @default("Shark Tank Golf Invitational")
   subtitle String @default("32 Players. Four Tiers. Draft Your Team. Win Your Matches. Survive.")
   season   Int // e.g. 2026
 
@@ -147,7 +154,14 @@ model Team {
   roundId String
   round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
-  name String // "Team A" / "Team B", renameable
+  name  String // "Team A" / "Team B", renameable
+  // Which side a team represents (0 = the first team created for the
+  // round, 1 = the second), independent of both `name` (renameable by the
+  // admin) and row-creation order (Postgres doesn't guarantee returning
+  // sibling rows in insertion order without an explicit ORDER BY — and
+  // code across the app destructures `[teamA, teamB] = round.teams`, so
+  // that guarantee has to come from somewhere real).
+  order Int @default(0)
 
   captainId String?
   captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: SetNull)

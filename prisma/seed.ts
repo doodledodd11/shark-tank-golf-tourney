@@ -177,8 +177,8 @@ async function main() {
     teamBPlayers.push(...group.slice(4, 8));
   }
 
-  const teamA = await prisma.team.create({ data: { roundId: round1.id, name: "Team A" } });
-  const teamB = await prisma.team.create({ data: { roundId: round1.id, name: "Team B" } });
+  const teamA = await prisma.team.create({ data: { roundId: round1.id, name: "Team A", order: 0 } });
+  const teamB = await prisma.team.create({ data: { roundId: round1.id, name: "Team B", order: 1 } });
 
   await prisma.teamMembership.createMany({
     data: [
