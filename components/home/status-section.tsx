@@ -1,4 +1,5 @@
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { Check, UserPlus } from "lucide-react";
 import {
   TOURNAMENT_STATUSES,
   TOURNAMENT_STATUS_DESCRIPTIONS,
@@ -19,6 +20,15 @@ export function StatusSection({ status }: { status: TournamentStatus }) {
             {TOURNAMENT_STATUS_LABELS[status]}
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-ink-700/70">{TOURNAMENT_STATUS_DESCRIPTIONS[status]}</p>
+          {status === "REGISTRATION" && (
+            <Link
+              href="/join"
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-gold-500 px-6 py-3 font-bold text-fairway-950 shadow transition-transform hover:scale-105 hover:bg-gold-400"
+            >
+              <UserPlus className="h-4 w-4" />
+              Join the Tournament
+            </Link>
+          )}
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-2">

@@ -1,4 +1,5 @@
 import { getActiveTournament, getCourses, getRoundsWithDetails } from "@/lib/data";
+import { isAdminSession } from "@/lib/dal";
 import { PageHeader } from "@/components/shared/page-header";
 import { CourseCard } from "@/components/courses/course-card";
 import { CourseSelectionTool } from "@/components/courses/course-selection-tool";
@@ -9,7 +10,11 @@ export const metadata = { title: "Course Selection" };
 
 export default async function CoursesPage() {
   const tournament = await getActiveTournament();
-  const [courses, rounds] = await Promise.all([getCourses(tournament.id), getRoundsWithDetails(tournament.id)]);
+  const [courses, rounds, isAdmin] = await Promise.all([
+    getCourses(tournament.id),
+    getRoundsWithDetails(tournament.id),
+    isAdminSession(),
+  ]);
 
   const selectableCourses = courses.filter((c) => c.active && c.approved);
 
@@ -39,6 +44,7 @@ export default async function CoursesPage() {
           <p className="mt-1 text-sm text-ink-700/60">
             Each player selects their preferred course from the approved list. Duplicate picks count as extra
             entries in the random draw — pick honestly, or don&apos;t be surprised when your favorite course wins.
+            Once everyone&apos;s in, the tournament admin runs the draw to lock in the official course.
           </p>
 
           {matchesNeedingSelection.length === 0 ? (
@@ -59,6 +65,7 @@ export default async function CoursesPage() {
                   participants={match.participants.map((p) => ({ playerId: p.playerId, playerName: p.player.name }))}
                   courses={selectableCourses}
                   initialSelections={match.courseSelections.map((s) => ({ playerId: s.playerId, courseId: s.courseId }))}
+                  isAdmin={isAdmin}
                 />
               ))}
             </div>

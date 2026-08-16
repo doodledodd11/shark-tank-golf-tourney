@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import type { Course } from "@prisma/client";
-import { PartyPopper, Shuffle } from "lucide-react";
+import { Lock, PartyPopper, Shuffle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { randomizeMatchCourse, submitCourseSelection } from "@/lib/actions/course-selection";
 
@@ -22,12 +22,14 @@ export function CourseSelectionTool({
   participants,
   courses,
   initialSelections,
+  isAdmin,
 }: {
   matchId: string;
   matchLabel: string;
   participants: ParticipantInfo[];
   courses: Course[];
   initialSelections: SelectionInfo[];
+  isAdmin: boolean;
 }) {
   const [selections, setSelections] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -58,7 +60,7 @@ export function CourseSelectionTool({
     .filter((c): c is Course => Boolean(c));
 
   function handleRandomize() {
-    if (pool.length === 0 || revealing) return;
+    if (!isAdmin || pool.length === 0 || revealing) return;
     setError(null);
     setResult(null);
     setRevealing(true);
@@ -131,12 +133,27 @@ export function CourseSelectionTool({
         <button
           type="button"
           onClick={handleRandomize}
-          disabled={pool.length === 0 || revealing}
+          disabled={!isAdmin || pool.length === 0 || revealing}
           className="flex items-center gap-2 rounded-full bg-gold-500 px-6 py-3 font-bold text-fairway-950 shadow transition-transform hover:scale-105 hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
         >
-          <Shuffle className={revealing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-          {revealing ? "Randomizing…" : "Randomize Course"}
+          {isAdmin ? (
+            <>
+              <Shuffle className={revealing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              {revealing ? "Randomizing…" : "Randomize Course"}
+            </>
+          ) : (
+            <>
+              <Lock className="h-4 w-4" />
+              Admin Runs the Draw
+            </>
+          )}
         </button>
+
+        {!isAdmin && (
+          <p className="text-xs text-ink-700/50">
+            Get your picks in — the tournament admin will run the random draw once everyone&apos;s chosen.
+          </p>
+        )}
 
         {cycleLabel && <p className="font-display text-xl font-bold text-ink-400">{cycleLabel}</p>}
 

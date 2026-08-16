@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { requireAdminSession } from "@/lib/dal";
 import { pickRandomCourse } from "@/lib/tournament-logic";
 
 // Deliberately public — players don't have accounts, and picking a course
@@ -50,7 +51,11 @@ export async function submitCourseSelection(input: { matchId: string; playerId: 
   revalidatePublicPages();
 }
 
+/** Draws the official course from the submitted selections. Picking a
+ * course (above) stays open to all four players, but committing to the
+ * result is a one-way door for the match — so only the admin runs it. */
 export async function randomizeMatchCourse(matchId: string): Promise<{ courseId: string; courseName: string }> {
+  await requireAdminSession();
   const [selections, match] = await Promise.all([
     prisma.courseSelection.findMany({ where: { matchId } }),
     prisma.match.findUnique({ where: { id: matchId } }),

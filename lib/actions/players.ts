@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAdminSession } from "@/lib/dal";
+import { getActiveTournament } from "@/lib/data";
+import { isRateLimited } from "@/lib/rate-limit";
 import { PLAYER_STATUSES } from "@/lib/constants";
 
 export interface FormState {
@@ -98,4 +101,50 @@ export async function deletePlayer(playerId: string): Promise<void> {
   }
   await prisma.player.delete({ where: { id: playerId } });
   revalidatePath("/", "layout");
+}
+
+const joinSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(60, "That name's too long"),
+  tier: z.coerce.number().int().min(1).max(4),
+});
+
+// Deliberately public — the whole point is that players add themselves
+// instead of the admin typing in 32 profiles by hand. No accounts, no
+// login: anyone can submit a name while the tournament is in Registration.
+// The admin reviews /admin/players afterward and deletes anything bogus,
+// same as they'd clean up a paper sign-up sheet.
+export async function joinTournament(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const clientIp = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (isRateLimited(`join:${clientIp}`)) {
+    return { error: "Too many attempts — wait a few minutes and try again." };
+  }
+
+  const parsed = joinSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  // Re-checked here, not just on the page that renders the form — the
+  // window between page load and submit is exactly when an admin closing
+  // Registration would otherwise let a late entry slip through.
+  const tournament = await getActiveTournament();
+  if (!tournament.id) {
+    return { error: "There's no active tournament to join right now." };
+  }
+  if (tournament.status !== "REGISTRATION") {
+    return { error: "Registration is closed — the field is already set for this tournament." };
+  }
+
+  await prisma.player.create({
+    data: {
+      tournamentId: tournament.id,
+      name: parsed.data.name,
+      tier: parsed.data.tier,
+      hometown: optionalText(formData.get("hometown")),
+      handicapIndex: optionalFloat(formData.get("handicapIndex")),
+    },
+  });
+
+  revalidatePath("/", "layout");
+  return { success: true };
 }
