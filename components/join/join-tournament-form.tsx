@@ -1,19 +1,52 @@
 "use client";
 
-import { useActionState, useRef, useEffect } from "react";
-import { PartyPopper, UserPlus } from "lucide-react";
+import { useActionState, useRef, useEffect, useState, type ChangeEvent } from "react";
+import { Camera, PartyPopper, UserPlus, UserRound } from "lucide-react";
 import { joinTournament, type FormState } from "@/lib/actions/players";
 import { Field, FormMessage, SubmitButton, inputClass } from "@/components/admin/form-controls";
 
 const initialState: FormState = {};
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export function JoinTournamentForm() {
   const [state, formAction] = useActionState(joinTournament, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The success branch below replaces this form (and its preview) entirely,
+    // so there's nothing to reset beyond the native form fields.
     if (state.success) formRef.current?.reset();
   }, [state.success]);
+
+  // Revoke the object URL whenever it's replaced or the form unmounts, so
+  // the browser doesn't hold the file's memory for the whole session.
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setPhotoError(null);
+    setPreview(null); // the cleanup effect above revokes whatever URL this replaces
+    if (!file) return;
+
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setPhotoError("Must be a JPEG, PNG, or WebP image.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPhotoError("That photo is too large — 4MB max.");
+      e.target.value = "";
+      return;
+    }
+    setPreview(URL.createObjectURL(file));
+  }
 
   if (state.success) {
     return (
@@ -33,7 +66,35 @@ export function JoinTournamentForm() {
 
   return (
     <form ref={formRef} action={formAction} className="rounded-2xl border border-fairway-900/10 bg-white p-6 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex items-center gap-4">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fairway-50 ring-1 ring-fairway-900/10">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element -- local blob: object URL, not a remote/optimizable image
+            <img src={preview} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <UserRound className="h-7 w-7 text-fairway-300" />
+          )}
+        </div>
+        <Field label="Photo" htmlFor="join-photo" hint={photoError ?? "Optional. JPEG, PNG, or WebP, 4MB max."}>
+          <label
+            htmlFor="join-photo"
+            className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-ink-800 shadow-sm hover:bg-stone-50"
+          >
+            <Camera className="h-4 w-4" />
+            {preview ? "Change Photo" : "Choose Photo"}
+          </label>
+          <input
+            id="join-photo"
+            name="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handlePhotoChange}
+            className="sr-only"
+          />
+        </Field>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="join-name">
           <input id="join-name" name="name" required maxLength={60} className={inputClass} placeholder="Your full name" />
         </Field>

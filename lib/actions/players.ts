@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { put } from "@vercel/blob";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAdminSession } from "@/lib/dal";
@@ -108,6 +109,40 @@ const joinSchema = z.object({
   tier: z.coerce.number().int().min(1).max(4),
 });
 
+const ALLOWED_PHOTO_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024; // 4MB
+
+/** Validates and uploads an optional photo from the join form. Returns the
+ * blob URL, null if no photo was attached, or an error to short-circuit
+ * the whole submission on — a rejected photo shouldn't silently create a
+ * photo-less player instead of telling the submitter why. */
+async function handleJoinPhoto(formData: FormData): Promise<{ url: string | null; error?: string }> {
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) return { url: null };
+
+  const extension = ALLOWED_PHOTO_TYPES[photo.type];
+  if (!extension) {
+    return { url: null, error: "Photo must be a JPEG, PNG, or WebP image." };
+  }
+  if (photo.size > MAX_PHOTO_BYTES) {
+    return { url: null, error: "Photo is too large — 4MB max." };
+  }
+
+  try {
+    const blob = await put(`player-photos/${crypto.randomUUID()}.${extension}`, photo, {
+      access: "public",
+      contentType: photo.type,
+    });
+    return { url: blob.url };
+  } catch {
+    return { url: null, error: "Couldn't upload that photo — try again, or join without one." };
+  }
+}
+
 // Deliberately public — the whole point is that players add themselves
 // instead of the admin typing in 32 profiles by hand. No accounts, no
 // login: anyone can submit a name while the tournament is in Registration.
@@ -135,6 +170,11 @@ export async function joinTournament(_prevState: FormState, formData: FormData):
     return { error: "Registration is closed — the field is already set for this tournament." };
   }
 
+  const photo = await handleJoinPhoto(formData);
+  if (photo.error) {
+    return { error: photo.error };
+  }
+
   await prisma.player.create({
     data: {
       tournamentId: tournament.id,
@@ -142,6 +182,7 @@ export async function joinTournament(_prevState: FormState, formData: FormData):
       tier: parsed.data.tier,
       hometown: optionalText(formData.get("hometown")),
       handicapIndex: optionalFloat(formData.get("handicapIndex")),
+      avatarUrl: photo.url,
     },
   });
 

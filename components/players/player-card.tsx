@@ -1,5 +1,6 @@
 import type { Player } from "@prisma/client";
-import { Crown, MapPin, Trophy, Users } from "lucide-react";
+import Image from "next/image";
+import { Crown, MapPin, Trophy, UserRound, Users } from "lucide-react";
 import type { CurrentAssignment } from "@/lib/player-status";
 import { cn } from "@/lib/utils";
 
@@ -26,17 +27,26 @@ export function PlayerCard({ player, assignment }: { player: Player; assignment:
       )}
 
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="flex items-center gap-1.5 font-display text-lg font-bold text-ink-950">
-            {player.name}
-            {assignment?.isCaptain && <Crown className="h-4 w-4 text-gold-600" aria-label="Captain" />}
-          </p>
-          {player.hometown && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-700/50">
-              <MapPin className="h-3 w-3" />
-              {player.hometown}
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fairway-50 ring-1 ring-fairway-900/10">
+            {player.avatarUrl ? (
+              <Image src={player.avatarUrl} alt="" width={44} height={44} className="h-full w-full object-cover" />
+            ) : (
+              <UserRound className="h-5 w-5 text-fairway-300" />
+            )}
+          </div>
+          <div>
+            <p className="flex items-center gap-1.5 font-display text-lg font-bold text-ink-950">
+              {player.name}
+              {assignment?.isCaptain && <Crown className="h-4 w-4 text-gold-600" aria-label="Captain" />}
             </p>
-          )}
+            {player.hometown && (
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-700/50">
+                <MapPin className="h-3 w-3" />
+                {player.hometown}
+              </p>
+            )}
+          </div>
         </div>
         <span className="shrink-0 rounded-full bg-fairway-50 px-2.5 py-1 text-xs font-semibold text-fairway-700">
           {TIER_LABELS[player.tier]}
