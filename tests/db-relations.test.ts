@@ -13,6 +13,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { completeRoundLogic } from "@/lib/round-completion";
+import { setRoundRostersLogic } from "@/lib/round-roster";
 
 const TEST_SEASON = 2099;
 const prisma = new PrismaClient();
@@ -267,5 +268,81 @@ describe("completeRoundLogic", () => {
 
     const unchangedRound = await prisma.round.findUniqueOrThrow({ where: { id: round.id } });
     expect(unchangedRound.status).toBe("PENDING");
+  });
+});
+
+describe("setRoundRostersLogic", () => {
+  async function makeRoundWithPairing() {
+    const tournament = await makeTournament();
+    const round = await prisma.round.create({
+      data: { tournamentId: tournament.id, number: 1, name: "Round 1", playersStart: 8, playersAdvance: 4 },
+    });
+    const teamA = await prisma.team.create({ data: { roundId: round.id, name: "Team A", order: 0 } });
+    const teamB = await prisma.team.create({ data: { roundId: round.id, name: "Team B", order: 1 } });
+    const [p1, p2, p3, p4] = await Promise.all([
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Roster 1", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Roster 2", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Roster 3", tier: 1 } }),
+      prisma.player.create({ data: { tournamentId: tournament.id, name: "Roster 4", tier: 1 } }),
+    ]);
+    await prisma.teamMembership.createMany({
+      data: [
+        { teamId: teamA.id, playerId: p1.id },
+        { teamId: teamA.id, playerId: p2.id },
+        { teamId: teamB.id, playerId: p3.id },
+        { teamId: teamB.id, playerId: p4.id },
+      ],
+    });
+    // p1 & p2 locked into a Team A pairing — the thing a same-side toggle
+    // shouldn't touch, but a side-switch for either of them should strand.
+    const pairing = await prisma.pairing.create({
+      data: { roundId: round.id, teamId: teamA.id, player1Id: p1.id, player2Id: p2.id, order: 1, locked: true },
+    });
+    return { round, teamA, teamB, p1, p2, p3, p4, pairing };
+  }
+
+  it("moves a player to the other team and cleans up their now-stale, uncommitted pairing", async () => {
+    const { round, teamA, teamB, p1, p2, p3, p4, pairing } = await makeRoundWithPairing();
+
+    // p2 switches from Team A to Team B; everyone else stays put.
+    const result = await setRoundRostersLogic({
+      roundId: round.id,
+      teamAId: teamA.id,
+      teamBId: teamB.id,
+      teamAPlayerIds: [p1.id],
+      teamBPlayerIds: [p3.id, p4.id, p2.id],
+    });
+    expect(result).toEqual({ success: true });
+
+    const p2Membership = await prisma.teamMembership.findFirst({ where: { playerId: p2.id } });
+    expect(p2Membership?.teamId).toBe(teamB.id);
+
+    const staleParing = await prisma.pairing.findUnique({ where: { id: pairing.id } });
+    expect(staleParing).toBeNull();
+  });
+
+  it("blocks moving a player whose pairing is already committed to a match", async () => {
+    const { round, teamA, teamB, p1, p2, p3, p4, pairing } = await makeRoundWithPairing();
+    const otherPairing = await prisma.pairing.create({
+      data: { roundId: round.id, teamId: teamB.id, player1Id: p3.id, player2Id: p4.id, order: 1, locked: true },
+    });
+    await prisma.match.create({
+      data: { roundId: round.id, matchNumber: 1, teamAId: teamA.id, teamBId: teamB.id, pairingAId: pairing.id, pairingBId: otherPairing.id },
+    });
+
+    const result = await setRoundRostersLogic({
+      roundId: round.id,
+      teamAId: teamA.id,
+      teamBId: teamB.id,
+      teamAPlayerIds: [p1.id],
+      teamBPlayerIds: [p3.id, p4.id, p2.id],
+    });
+    expect(result.error).toBeTruthy();
+
+    const p2Membership = await prisma.teamMembership.findFirst({ where: { playerId: p2.id } });
+    expect(p2Membership?.teamId).toBe(teamA.id);
+
+    const unchangedPairing = await prisma.pairing.findUnique({ where: { id: pairing.id } });
+    expect(unchangedPairing).not.toBeNull();
   });
 });

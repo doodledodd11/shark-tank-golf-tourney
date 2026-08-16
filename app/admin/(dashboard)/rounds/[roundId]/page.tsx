@@ -32,7 +32,10 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
       </div>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">1. Draft Teams</h2>
+        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-700/50">1. Draft Teams</h2>
+        <p className="mb-3 text-xs text-ink-700/50">
+          Also how to fix a mis-assigned player later — toggle their side and save.
+        </p>
         <RoundRosterTool roundId={round.id} teams={round.teams} eligiblePlayers={eligiblePlayers} />
       </section>
 

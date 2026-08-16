@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAdminSession } from "@/lib/dal";
 import { completeRoundLogic } from "@/lib/round-completion";
+import { setRoundRostersLogic } from "@/lib/round-roster";
 
 export interface FormState {
   error?: string;
@@ -32,19 +33,6 @@ export async function initializeRoundTeams(roundId: string): Promise<void> {
   revalidateAll();
 }
 
-const nonEmptyIdArray = z.array(z.string().min(1));
-
-const rosterSchema = z.object({
-  roundId: z.string().min(1),
-  teamAId: z.string().min(1),
-  teamBId: z.string().min(1),
-  teamAPlayerIds: nonEmptyIdArray,
-  teamBPlayerIds: nonEmptyIdArray,
-});
-
-/** Replaces both teams' rosters wholesale — simpler and less error-prone
- * than diffing individual add/remove operations, and matches how an admin
- * actually thinks about a draft ("here is the final roster split"). */
 export async function setRoundRosters(input: {
   roundId: string;
   teamAId: string;
@@ -53,41 +41,9 @@ export async function setRoundRosters(input: {
   teamBPlayerIds: string[];
 }): Promise<FormState> {
   await requireAdminSession();
-  const data = rosterSchema.parse(input);
-
-  const overlap = data.teamAPlayerIds.filter((id) => data.teamBPlayerIds.includes(id));
-  if (overlap.length > 0) {
-    return { error: "A player can't be on both teams." };
-  }
-  const newRosterIds = new Set([...data.teamAPlayerIds, ...data.teamBPlayerIds]);
-
-  // A re-drafted roster can strand pairings that named a player no longer
-  // on either team — clean those up so they don't sit around and later get
-  // matched against an opponent, putting that player in two matches for
-  // the round. Pairings already committed to a match are left alone; those
-  // need an explicit delete (which itself blocks while the match exists).
-  const staleCandidates = await prisma.pairing.findMany({
-    where: { roundId: data.roundId },
-    include: { matchesAsPairingA: { select: { id: true } }, matchesAsPairingB: { select: { id: true } } },
-  });
-  const stalePairingIds = staleCandidates
-    .filter((p) => !newRosterIds.has(p.player1Id) || !newRosterIds.has(p.player2Id))
-    .filter((p) => p.matchesAsPairingA.length === 0 && p.matchesAsPairingB.length === 0)
-    .map((p) => p.id);
-
-  await prisma.$transaction([
-    prisma.teamMembership.deleteMany({ where: { teamId: { in: [data.teamAId, data.teamBId] } } }),
-    prisma.teamMembership.createMany({
-      data: [
-        ...data.teamAPlayerIds.map((playerId) => ({ teamId: data.teamAId, playerId })),
-        ...data.teamBPlayerIds.map((playerId) => ({ teamId: data.teamBId, playerId })),
-      ],
-    }),
-    ...(stalePairingIds.length > 0 ? [prisma.pairing.deleteMany({ where: { id: { in: stalePairingIds } } })] : []),
-  ]);
-
-  revalidateAll();
-  return { success: true };
+  const result = await setRoundRostersLogic(input);
+  if (result.success) revalidateAll();
+  return result;
 }
 
 const updateTeamSchema = z.object({
