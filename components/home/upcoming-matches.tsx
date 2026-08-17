@@ -59,8 +59,8 @@ export function UpcomingMatches({ matches, roundNameById }: { matches: MatchWith
 
                 {isComplete && (
                   <p className="mt-4 rounded-lg bg-fairway-50 px-3 py-2 text-center font-display text-lg font-bold text-fairway-900">
-                    {match.teamA?.name ?? "A"} {formatPoints(totals.teamA)} — {formatPoints(totals.teamB)}{" "}
-                    {match.teamB?.name ?? "B"}
+                    {match.teamA?.name ?? "A"} {formatPoints(totals.teamA)}, {match.teamB?.name ?? "B"}{" "}
+                    {formatPoints(totals.teamB)}
                   </p>
                 )}
               </div>

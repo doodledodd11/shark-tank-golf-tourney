@@ -10,7 +10,7 @@ const SECTIONS = [
   { id: "tiers", title: "Skill Tiers" },
   { id: "draft", title: "Draft Rules" },
   { id: "strategy", title: "Strategy Phase" },
-  { id: "pairs", title: "Pair Construction" },
+  { id: "pairs", title: "Twosome Construction" },
   { id: "matchmaking", title: "Alternating Matchmaking" },
   { id: "round-1", title: "Round 1" },
   { id: "round-2", title: "Round 2" },
@@ -50,20 +50,20 @@ export default function RulesPage() {
             <RuleSection id="concept" number={1} title="Tournament Concept">
               <p>
                 The tournament begins with 32 golfers, divided into four skill tiers of eight. There are no
-                handicap strokes at any point during matches — the tiered draft system is what keeps teams
+                handicap strokes at any point during matches. The tiered draft system is what keeps teams
                 balanced, not strokes given on the course.
               </p>
               <p>
                 The field is cut in half twice: 32 players become 16, then 16 become 8. The survivors are then
                 redrafted into two 4-player championship teams for a 36-hole final. Eliminated players are never
-                removed from the site — their tournament history stays visible permanently.
+                removed from the site. Their tournament history stays visible permanently.
               </p>
             </RuleSection>
 
             <RuleSection id="tiers" number={2} title="Skill Tiers">
               <p>
                 All 32 players are ranked into four tiers of eight, from strongest (Tier 1) to most developing
-                (Tier 4). Tiers exist purely to keep the draft balanced — every team in every round ends up with an
+                (Tier 4). Tiers exist purely to keep the draft balanced. Every team in every round ends up with an
                 even spread across all four tiers, so no team is stacked with the strongest (or weakest) players.
               </p>
               <p>
@@ -79,57 +79,57 @@ export default function RulesPage() {
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>
-                  <strong>Round 1 draft:</strong> Team A and Team B each draft 4 players from every tier — 16
+                  <strong>Round 1 draft:</strong> Team A and Team B each draft 4 players from every tier, 16
                   players per team, 32 total.
                 </li>
                 <li>
                   <strong>Round 2 draft:</strong> the 16 survivors are completely redrafted. Team A and Team B each
-                  draft 2 players from every tier — 8 players per team.
+                  draft 2 players from every tier, 8 players per team.
                 </li>
                 <li>
                   <strong>Championship draft:</strong> the final 8 are split into two 4-player teams, each getting
                   exactly one player from each of the four original tiers.
                 </li>
               </ul>
-              <p>Nobody keeps their previous team or partner between rounds — every draft starts from scratch.</p>
+              <p>Nobody keeps their previous team or partner between rounds. Every draft starts from scratch.</p>
             </RuleSection>
 
             <RuleSection id="strategy" number={4} title="Strategy Phase">
               <p>
                 Once a team&apos;s roster is set, the team privately decides how to split its players into 2-man
-                pairings — without knowing how the opposing team has paired up. This is where team strategy really
-                begins: a captain might pair two strong players together to win outright, or spread strength across
-                every pairing to avoid a bad matchup.
+                twosomes, without knowing how the opposing team has grouped its own. This is where team strategy
+                really begins: a captain might put two strong players together in one twosome to win outright, or
+                spread strength across every twosome to avoid a bad matchup.
               </p>
             </RuleSection>
 
-            <RuleSection id="pairs" number={5} title="Pair Construction">
+            <RuleSection id="pairs" number={5} title="Twosome Construction">
               <p>
-                Round 1 teams build eight 2-man pairings from their 16 players. Round 2 teams build four pairings
-                from their 8 players. Once a team finalizes its pairings, they are locked — pairings cannot be
+                Round 1 teams build eight 2-man twosomes from their 16 players. Round 2 teams build four twosomes
+                from their 8 players. Once a team finalizes its twosomes, they are locked. Twosomes cannot be
                 rearranged once the matchmaking phase begins.
               </p>
             </RuleSection>
 
             <RuleSection id="matchmaking" number={6} title="Alternating Matchmaking">
               <p>
-                With both teams&apos; pairings locked, captains alternate setting up the actual matches. The
+                With both teams&apos; twosomes locked, captains alternate setting up the actual matches. The
                 sequence goes back and forth:
               </p>
               <ol className="list-decimal space-y-1 pl-5">
-                <li>Team A announces one of its locked pairs.</li>
-                <li>Team B chooses one of its own locked pairs to play against it.</li>
-                <li>Team B then announces a different locked pair.</li>
-                <li>Team A chooses one of its remaining pairs to play against it.</li>
-                <li>Play continues, alternating, until every pairing has an opponent.</li>
+                <li>Team A announces one of its locked twosomes.</li>
+                <li>Team B chooses one of its own locked twosomes to play against it.</li>
+                <li>Team B then announces a different locked twosome.</li>
+                <li>Team A chooses one of its remaining twosomes to play against it.</li>
+                <li>Play continues, alternating, until every twosome has an opponent.</li>
               </ol>
               <p>
-                This is a genuine strategic phase — captains can try to hunt for favorable matchups or protect a
-                strong pairing by holding it back.
+                This is a genuine strategic phase. Captains can try to hunt for favorable matchups or protect a
+                strong twosome by holding it back.
               </p>
             </RuleSection>
 
-            <RuleSection id="round-1" number={7} title="Round 1 — 32 to 16">
+            <RuleSection id="round-1" number={7} title="Round 1, 32 to 16">
               <p>
                 Round 1 produces eight 2v2 matches. Each match is worth 3 total points: 1 for the front-9 (2-man
                 scramble), 1 for the back-9 (2-man shamble), and 1 for the overall 18-hole result. The team with the
@@ -142,17 +142,17 @@ export default function RulesPage() {
               </p>
             </RuleSection>
 
-            <RuleSection id="round-2" number={8} title="Round 2 — 16 to 8">
+            <RuleSection id="round-2" number={8} title="Round 2, 16 to 8">
               <p>
                 The 16 survivors are completely redrafted into two new 8-player teams. Teams again build locked
-                pairings and go through the same alternating matchmaking process, producing four 2v2 matches. Each
+                twosomes and go through the same alternating matchmaking process, producing four 2v2 matches. Each
                 match is worth 3 points: 1 for the front-9 (best ball), 1 for the back-9 (alternate shot), and 1 for
                 the overall 18-hole result. The winning eight advance; a tie is again settled by a captain-vs-captain
                 playoff.
               </p>
             </RuleSection>
 
-            <RuleSection id="championship" number={9} title="Championship — Final 8">
+            <RuleSection id="championship" number={9} title="Championship, Final 8">
               <p>
                 The last 8 players are redrafted one final time into two 4-player teams, each getting exactly one
                 player from every original skill tier. The championship spans roughly 36 holes:
@@ -168,7 +168,7 @@ export default function RulesPage() {
               <p>
                 The exact point values for the championship are configured by the tournament administrator rather
                 than hardcoded, since the format may evolve. If the championship ends tied, the tiebreaker is a 4v4
-                sudden-death scramble — all four players on each team combine into one scramble team and play
+                sudden-death scramble. All four players on each team combine into one scramble team and play
                 until someone wins a hole. The four golfers on the winning team split the tournament prize pool.
               </p>
             </RuleSection>
@@ -194,9 +194,9 @@ export default function RulesPage() {
               </p>
               <p>
                 For example, if Team A wins the front 9 and the overall result but loses the back 9, the match
-                total reads <strong>Team A 2 — Team B 1</strong>. Round totals are simply the sum of every match&apos;s
-                points — with 8 matches in Round 1, the full round is worth 24 points, so a final score like{" "}
-                <strong>Team A 13.5 — Team B 10.5</strong> is a normal result once a segment or two has been tied.
+                total reads <strong>Team A 2, Team B 1</strong>. Round totals are simply the sum of every match&apos;s
+                points. With 8 matches in Round 1, the full round is worth 24 points, so a final score like{" "}
+                <strong>Team A 13.5, Team B 10.5</strong> is a normal result once a segment or two has been tied.
               </p>
             </RuleSection>
 
@@ -207,7 +207,7 @@ export default function RulesPage() {
                   singles match; the winner&apos;s team advances.
                 </li>
                 <li>
-                  <strong>Championship tied after both 18-hole segments:</strong> a 4v4 sudden-death scramble — the
+                  <strong>Championship tied after both 18-hole segments:</strong> a 4v4 sudden-death scramble. The
                   first team to win a hole wins the tournament.
                 </li>
               </ul>
@@ -224,13 +224,13 @@ export default function RulesPage() {
               </p>
               <p>
                 When it&apos;s time to decide, hitting <strong>Randomize Course</strong> draws randomly from a pool
-                built out of every submitted selection — one entry per player, so a course picked by multiple
+                built out of every submitted selection, one entry per player, so a course picked by multiple
                 players is proportionally more likely to be drawn. For example:
               </p>
               <div className="rounded-xl border border-fairway-900/10 bg-fairway-50/40 p-4 text-sm">
                 <p>John → Course A · Mike → Course A · Steve → Course B · Chris → Course C</p>
                 <p className="mt-1 font-semibold text-fairway-800">Draw pool: Course A, Course A, Course B, Course C</p>
-                <p className="mt-1 text-ink-700/60">Course A has a 50% chance of being selected — this is intentional.</p>
+                <p className="mt-1 text-ink-700/60">Course A has a 50% chance of being selected. This is intentional.</p>
               </div>
             </RuleSection>
 
@@ -238,20 +238,20 @@ export default function RulesPage() {
               <p>Every match moves through a simple status lifecycle as it&apos;s organized and played:</p>
               <ol className="list-decimal space-y-1 pl-5">
                 <li>
-                  <strong>Pairing Pending</strong> — the matchup hasn&apos;t been set via alternating matchmaking
+                  <strong>Twosome Pending</strong>, the matchup hasn&apos;t been set via alternating matchmaking
                   yet.
                 </li>
                 <li>
-                  <strong>Course Selection</strong> — the four players are agreeing on where to play.
+                  <strong>Course Selection</strong>, the four players are agreeing on where to play.
                 </li>
                 <li>
-                  <strong>Scheduled</strong> — a course and date are locked in.
+                  <strong>Scheduled</strong>, a course and date are locked in.
                 </li>
                 <li>
-                  <strong>In Progress</strong> — the match is currently being played.
+                  <strong>In Progress</strong>, the match is currently being played.
                 </li>
                 <li>
-                  <strong>Complete</strong> — all three segments are decided and points are final.
+                  <strong>Complete</strong>, all three segments are decided and points are final.
                 </li>
               </ol>
             </RuleSection>
@@ -260,10 +260,10 @@ export default function RulesPage() {
               <p>
                 Players may use a third-party app like Golf GameBook to record live, shot-by-shot scoring during a
                 round. When a match has a live scoring link attached, a <strong>Follow Match Live</strong> button
-                appears on that match — it opens the external scoring app in a new tab.
+                appears on that match. It opens the external scoring app in a new tab.
               </p>
               <p>
-                This site remains the official source of truth for team rosters, pairings, advancement,
+                This site remains the official source of truth for team rosters, twosomes, advancement,
                 eliminations, tournament points, and final results, regardless of what any third-party scoring app
                 shows.
               </p>
@@ -272,7 +272,7 @@ export default function RulesPage() {
             <RuleSection id="prize-pool" number={16} title="Prize Pool">
               <p>
                 The prize pool grows as players lock in their entry fee and is displayed live on the homepage,
-                along with the entry fee, number of paid players, and the championship split size — all editable by
+                along with the entry fee, number of paid players, and the championship split size, all editable by
                 the tournament administrator as the season progresses.
               </p>
               <p>

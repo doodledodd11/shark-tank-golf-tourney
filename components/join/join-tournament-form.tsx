@@ -41,7 +41,7 @@ export function JoinTournamentForm() {
       return;
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      setPhotoError("That photo is too large — 4MB max.");
+      setPhotoError("That photo is too large, 4MB max.");
       e.target.value = "";
       return;
     }
@@ -101,7 +101,7 @@ export function JoinTournamentForm() {
         <Field
           label="Skill Tier"
           htmlFor="join-tier"
-          hint="Not sure? Take your best guess — the admin can adjust this before the draft."
+          hint="Not sure? Take your best guess. The admin can adjust this before the draft."
         >
           <select id="join-tier" name="tier" defaultValue={2} className={inputClass}>
             {[1, 2, 3, 4].map((t) => (

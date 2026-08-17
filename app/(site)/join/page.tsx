@@ -14,7 +14,7 @@ export default async function JoinPage() {
     <div>
       <PageHeader
         title="Join the Tournament"
-        subtitle="Add yourself to the field — no account needed. The admin finalizes tiers and runs the draft once registration closes."
+        subtitle="Add yourself to the field. No account needed. The admin finalizes tiers and runs the draft once registration closes."
       />
 
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">

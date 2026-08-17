@@ -16,10 +16,10 @@ export function LiveDraftAdminPanel({
     <div className="rounded-2xl border border-gold-400/50 bg-gold-50/40 p-5">
       <p className="flex items-center gap-2 font-semibold text-fairway-900">
         <Shuffle className="h-4 w-4" />
-        Live Draft in Progress — {statusLabel}
+        Live Draft in Progress, {statusLabel}
       </p>
       <p className="mt-1 text-sm text-ink-700/60">
-        Share each captain&apos;s link below — they pick on their own, live, no account needed. The manual roster
+        Share each captain&apos;s link below. They pick on their own, live, no account needed. The manual roster
         tool is hidden here while this is running; it&apos;ll reappear once the draft is complete if something
         needs fixing.
       </p>
@@ -33,7 +33,7 @@ export function LiveDraftAdminPanel({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink-950">
                   {team.name}
-                  {team.captain ? ` — ${team.captain.name}` : ""}
+                  {team.captain ? `, ${team.captain.name}` : ""}
                 </p>
                 <p className="truncate text-xs text-ink-700/50">/draft/{roundId}/{team.captainAccessToken}</p>
               </div>

@@ -9,19 +9,19 @@ export interface HowItWorksStep {
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     title: "Four skill tiers",
-    body: "All 32 players are ranked into four tiers of eight. Tiers keep every team balanced — there are no handicap strokes during matches, so the draft is what levels the field.",
+    body: "All 32 players are ranked into four tiers of eight. Tiers keep every team balanced. There are no handicap strokes during matches, so the draft is what levels the field.",
   },
   {
     title: "Captains draft balanced teams",
     body: "Two captains build their rosters one tier at a time, so both teams end up with the same tier composition even though the individual players differ.",
   },
   {
-    title: "Teams privately build pairings",
-    body: "Each team splits its roster into 2-man pairings behind closed doors, without knowing how the opposing team has paired up.",
+    title: "Teams privately build twosomes",
+    body: "Each team splits its roster into 2-man twosomes behind closed doors, without knowing how the opposing team has grouped its own.",
   },
   {
-    title: "Captains match pairs against each other",
-    body: "Pairings are matched up one at a time, alternating which captain sets the next matchup — a strategic phase all its own.",
+    title: "Captains match twosomes against each other",
+    body: "Twosomes are matched up one at a time, alternating which captain sets the next matchup, a strategic phase all its own.",
   },
   {
     title: "Matches are played straight up",
@@ -29,7 +29,7 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
   {
     title: "The losing half is eliminated",
-    body: "Whichever team scores more total points across all of its matches advances. The other 16 (or 8, in Round 2) are eliminated — but stay visible in tournament history.",
+    body: "Whichever team scores more total points across all of its matches advances. The other 16 (or 8, in Round 2) are eliminated, but stay visible in tournament history.",
   },
   {
     title: "Survivors are completely redrafted",
@@ -37,6 +37,6 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
   {
     title: "Final 8 play a 4v4 championship",
-    body: "The last 8 players split into two 4-man teams — one from each original tier — for a two-round championship: team matches, then singles.",
+    body: "The last 8 players split into two 4-man teams, one from each original tier, for a two-round championship: team matches, then singles.",
   },
 ];

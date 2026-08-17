@@ -24,7 +24,7 @@ export function RoundMatchCreator({ round, teams }: { round: RoundWithDetails; t
             onClick={() => setMode("pairings")}
             className={cn("rounded-full px-3 py-1", mode === "pairings" ? "bg-white shadow-sm" : "text-stone-500")}
           >
-            From Pairings
+            From Twosomes
           </button>
           <button
             type="button"
@@ -53,7 +53,7 @@ function PairingsMatchForm({ round, teamA, teamB }: { round: RoundWithDetails; t
   const template = round.number === 1 ? "ROUND_1" : "ROUND_2";
 
   if (availableA.length === 0 || availableB.length === 0) {
-    return <p className="mt-3 text-sm text-ink-700/50">No unmatched pairings remain on both teams.</p>;
+    return <p className="mt-3 text-sm text-ink-700/50">No unmatched twosomes remain on both teams.</p>;
   }
 
   return (
@@ -64,7 +64,7 @@ function PairingsMatchForm({ round, teamA, teamB }: { round: RoundWithDetails; t
       <input type="hidden" name="template" value={template} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink-700/60">{teamA.name} pairing</label>
+          <label className="mb-1 block text-xs font-medium text-ink-700/60">{teamA.name} twosome</label>
           <select name="pairingAId" required className="w-full rounded-lg border border-stone-300 px-2 py-1.5 text-sm">
             <option value="">Select…</option>
             {availableA.map((p) => (
@@ -75,7 +75,7 @@ function PairingsMatchForm({ round, teamA, teamB }: { round: RoundWithDetails; t
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink-700/60">{teamB.name} pairing</label>
+          <label className="mb-1 block text-xs font-medium text-ink-700/60">{teamB.name} twosome</label>
           <select name="pairingBId" required className="w-full rounded-lg border border-stone-300 px-2 py-1.5 text-sm">
             <option value="">Select…</option>
             {availableB.map((p) => (

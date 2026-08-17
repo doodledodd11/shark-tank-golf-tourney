@@ -48,7 +48,7 @@ export function RoundSetupChoice({ roundId, eligiblePlayers }: { roundId: string
     <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="font-semibold text-ink-950">Start Live Draft</p>
       <p className="mt-1 text-sm text-ink-700/60">
-        Pick each team&apos;s captain — they draft the rest live, using their own link. Nobody else needs an account.
+        Pick each team&apos;s captain. They draft the rest live, using their own link. Nobody else needs an account.
       </p>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>

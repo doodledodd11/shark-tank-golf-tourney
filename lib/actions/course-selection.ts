@@ -62,7 +62,7 @@ export async function randomizeMatchCourse(matchId: string): Promise<{ courseId:
   ]);
   if (!match) throw new Error("Match not found.");
   if (match.courseId) {
-    throw new Error("This match already has an official course — the draw can only run once.");
+    throw new Error("This match already has an official course. The draw can only run once.");
   }
   if (selections.length === 0) throw new Error("No course selections have been submitted yet.");
 

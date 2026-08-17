@@ -75,7 +75,7 @@ export async function setRoundRostersLogic(input: {
   const blockingPairing = stalePairings.find((p) => p.matchesAsPairingA.length > 0 || p.matchesAsPairingB.length > 0);
   if (blockingPairing) {
     return {
-      error: `${blockingPairing.player1.name} & ${blockingPairing.player2.name} are already paired into a match this round — delete or reassign that match before moving either of them to the other team.`,
+      error: `${blockingPairing.player1.name} & ${blockingPairing.player2.name} are already a twosome committed to a match this round. Delete or reassign that match before moving either of them to the other team.`,
     };
   }
   const stalePairingIds = stalePairings.map((p) => p.id);

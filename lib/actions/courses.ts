@@ -102,7 +102,7 @@ export async function deleteCourse(courseId: string): Promise<void> {
   // below remains a real (if secondary) safety net for that case.
   const referencingMatch = await prisma.match.findFirst({ where: { courseId } });
   if (referencingMatch) {
-    throw new Error("Can't delete a course already linked to a match — mark it inactive instead.");
+    throw new Error("Can't delete a course already linked to a match. Mark it inactive instead.");
   }
   try {
     await prisma.course.delete({ where: { id: courseId } });

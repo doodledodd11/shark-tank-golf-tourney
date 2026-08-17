@@ -59,20 +59,20 @@ export function DraftBoard({
           <div className="flex flex-col items-center gap-1.5">
             <PartyPopper className="h-6 w-6 text-gold-600" />
             <p className="font-display text-xl font-bold text-fairway-900">Draft Complete</p>
-            <p className="text-sm text-ink-700/60">Both rosters are set — check the round for pairings next.</p>
+            <p className="text-sm text-ink-700/60">Both rosters are set. Check the round for twosomes next.</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1.5">
             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fairway-600">
               <Radio className="h-3.5 w-3.5 animate-pulse" />
-              Live — {TIER_LABELS[data.currentTier ?? 1]}
+              Live, {TIER_LABELS[data.currentTier ?? 1]}
             </p>
             <p className="font-display text-2xl font-bold text-fairway-900">
               {data.teams.find((t) => t.id === data.onTheClockTeamId)?.name ?? "—"} is on the clock
             </p>
             {captainToken && (
               <p className="text-sm text-ink-700/60">
-                {myTurn ? "It's your pick — choose below." : "Waiting for the other captain to pick…"}
+                {myTurn ? "It's your pick. Choose below." : "Waiting for the other captain to pick…"}
               </p>
             )}
           </div>
@@ -82,7 +82,7 @@ export function DraftBoard({
       {myTurn && (
         <div className="rounded-2xl border border-gold-400/60 bg-gold-50/50 p-5">
           <p className="font-semibold text-fairway-900">
-            Your Pick — {TIER_LABELS[data.currentTier ?? 1]} ({currentTierPool.length} available)
+            Your Pick, {TIER_LABELS[data.currentTier ?? 1]} ({currentTierPool.length} available)
           </p>
           {pickError && <p className="mt-2 text-sm font-medium text-red-600">{pickError}</p>}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">

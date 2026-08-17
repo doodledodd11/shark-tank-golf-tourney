@@ -23,9 +23,9 @@ export function RoundScoreBanner({
         <span className={cn(teamATotal > teamBTotal && "text-gold-400")}>
           {teamAName} {formatPoints(teamATotal)}
         </span>
-        <span className="mx-3 text-cream-100/30">—</span>
+        <span className="mx-3 text-cream-100/30">,</span>
         <span className={cn(teamBTotal > teamATotal && "text-gold-400")}>
-          {formatPoints(teamBTotal)} {teamBName}
+          {teamBName} {formatPoints(teamBTotal)}
         </span>
       </p>
       <p className="mt-2 text-xs text-cream-100/40">

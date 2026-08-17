@@ -22,7 +22,7 @@ export default async function AdminCoursesPage() {
 
       <div className="mt-6 rounded-2xl border border-stone-200 bg-white shadow-sm">
         {courses.length === 0 ? (
-          <p className="p-6 text-center text-sm text-ink-700/50">No courses yet — add one above.</p>
+          <p className="p-6 text-center text-sm text-ink-700/50">No courses yet. Add one above.</p>
         ) : (
           courses.map((course) => <CourseRow key={course.id} course={course} />)
         )}

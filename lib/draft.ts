@@ -62,11 +62,11 @@ export async function startDraftLogic(input: {
   if (!round) return { error: "Round not found." };
 
   if (round.teams.length !== 0 && round.teams.length !== 2) {
-    return { error: "This round is in an unexpected state — fix it from the round admin page first." };
+    return { error: "This round is in an unexpected state. Fix it from the round admin page first." };
   }
   const existingMemberships = round.teams.flatMap((t) => t.memberships);
   if (existingMemberships.length > 0 || round.teams.some((t) => t.captainAccessToken)) {
-    return { error: "This round already has a roster or an active draft — start a live draft only on a clean round." };
+    return { error: "This round already has a roster or an active draft. Start a live draft only on a clean round." };
   }
 
   const allPlayers = await prisma.player.findMany({ where: { tournamentId: round.tournamentId } });

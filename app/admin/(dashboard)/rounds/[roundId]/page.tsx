@@ -28,7 +28,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
 
   const onTheClockTeam = draftBoard?.teams.find((t) => t.id === draftBoard.onTheClockTeamId);
   const statusLabel = draftBoard?.currentTier
-    ? `Tier ${draftBoard.currentTier} of 4 — ${onTheClockTeam?.name ?? "?"}'s turn`
+    ? `Tier ${draftBoard.currentTier} of 4, ${onTheClockTeam?.name ?? "?"}'s turn`
     : "";
 
   return (
@@ -52,7 +52,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
         ) : (
           <>
             <p className="mb-3 text-xs text-ink-700/50">
-              Also how to fix a mis-assigned player later — toggle their side and save.
+              Also how to fix a mis-assigned player later. Toggle their side and save.
             </p>
             <RoundRosterTool roundId={round.id} teams={round.teams} eligiblePlayers={eligiblePlayers} />
           </>
@@ -62,7 +62,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
       {round.teams.length > 0 && !draftInProgress && (
         <>
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">2. Pairings</h2>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">2. Twosomes</h2>
             <RoundPairingsManager round={round} teams={round.teams} />
           </section>
 

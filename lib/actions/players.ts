@@ -129,7 +129,7 @@ async function handleJoinPhoto(formData: FormData): Promise<{ url: string | null
     return { url: null, error: "Photo must be a JPEG, PNG, or WebP image." };
   }
   if (photo.size > MAX_PHOTO_BYTES) {
-    return { url: null, error: "Photo is too large — 4MB max." };
+    return { url: null, error: "Photo is too large. 4MB max." };
   }
 
   try {
@@ -139,7 +139,7 @@ async function handleJoinPhoto(formData: FormData): Promise<{ url: string | null
     });
     return { url: blob.url };
   } catch {
-    return { url: null, error: "Couldn't upload that photo — try again, or join without one." };
+    return { url: null, error: "Couldn't upload that photo. Try again, or join without one." };
   }
 }
 
@@ -151,7 +151,7 @@ async function handleJoinPhoto(formData: FormData): Promise<{ url: string | null
 export async function joinTournament(_prevState: FormState, formData: FormData): Promise<FormState> {
   const clientIp = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   if (isRateLimited(`join:${clientIp}`)) {
-    return { error: "Too many attempts — wait a few minutes and try again." };
+    return { error: "Too many attempts. Wait a few minutes and try again." };
   }
 
   const parsed = joinSchema.safeParse(Object.fromEntries(formData.entries()));
@@ -167,7 +167,7 @@ export async function joinTournament(_prevState: FormState, formData: FormData):
     return { error: "There's no active tournament to join right now." };
   }
   if (tournament.status !== "REGISTRATION") {
-    return { error: "Registration is closed — the field is already set for this tournament." };
+    return { error: "Registration is closed. The field is already set for this tournament." };
   }
 
   const photo = await handleJoinPhoto(formData);

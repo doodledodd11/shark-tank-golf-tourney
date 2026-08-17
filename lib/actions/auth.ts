@@ -25,7 +25,7 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
   // rather than skipping the check entirely if the header is ever missing.
   const clientIp = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   if (isRateLimited(clientIp)) {
-    return { error: "Too many attempts — wait a few minutes and try again." };
+    return { error: "Too many attempts. Wait a few minutes and try again." };
   }
 
   if (typeof password !== "string" || password.length === 0) {

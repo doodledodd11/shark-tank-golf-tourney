@@ -38,7 +38,8 @@ function MatchRow({ match }: { match: RoundWithDetails["matches"][number] }) {
           {getSideNames(match, "A")} <span className="text-ink-700/40">vs</span> {getSideNames(match, "B")}
         </p>
         <p className="text-xs text-ink-700/50">
-          {formatPoints(totals.teamA)} — {formatPoints(totals.teamB)} · {match.course?.name ?? "No course set"}
+          {match.teamA?.name ?? "A"} {formatPoints(totals.teamA)}, {match.teamB?.name ?? "B"}{" "}
+          {formatPoints(totals.teamB)} · {match.course?.name ?? "No course set"}
         </p>
       </div>
       <div className="flex items-center gap-2">

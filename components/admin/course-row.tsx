@@ -54,7 +54,7 @@ export function CourseRow({ course }: { course: Course }) {
               course.active ? "bg-fairway-100 text-fairway-700" : "bg-stone-200 text-stone-600",
             )}
           >
-            {course.active ? "Active" : "Inactive"} — click to toggle
+            {course.active ? "Active" : "Inactive"}, click to toggle
           </button>
 
           <div className="ml-auto">

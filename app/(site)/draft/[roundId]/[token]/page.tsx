@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DraftBoard } from "@/components/draft/draft-board";
 
-export const metadata = { title: "Live Draft — Captain" };
+export const metadata = { title: "Live Draft, Captain" };
 
 export default async function DraftCaptainPage({ params }: { params: Promise<{ roundId: string; token: string }> }) {
   const { roundId, token } = await params;
@@ -15,7 +15,7 @@ export default async function DraftCaptainPage({ params }: { params: Promise<{ r
     <div>
       <PageHeader
         title={isValidCaptain ? `You're Drafting for ${data!.teams.find((t) => t.id === data!.myTeamId)!.name}` : "Live Draft"}
-        subtitle="Pick your roster one tier at a time — everyone else can follow along on the public draft page."
+        subtitle="Pick your roster one tier at a time. Everyone else can follow along on the public draft page."
       />
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         {data && isValidCaptain ? (

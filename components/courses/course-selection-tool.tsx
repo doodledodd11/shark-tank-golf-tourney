@@ -151,7 +151,7 @@ export function CourseSelectionTool({
 
         {!isAdmin && (
           <p className="text-xs text-ink-700/50">
-            Get your picks in — the tournament admin will run the random draw once everyone&apos;s chosen.
+            Get your picks in. The tournament admin will run the random draw once everyone&apos;s chosen.
           </p>
         )}
 

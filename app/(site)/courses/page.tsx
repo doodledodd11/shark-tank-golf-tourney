@@ -43,7 +43,7 @@ export default async function CoursesPage() {
           <h2 className="font-display text-2xl font-bold text-fairway-900">Matches Needing a Course</h2>
           <p className="mt-1 text-sm text-ink-700/60">
             Each player selects their preferred course from the approved list. Duplicate picks count as extra
-            entries in the random draw — pick honestly, or don&apos;t be surprised when your favorite course wins.
+            entries in the random draw. Pick honestly, or don&apos;t be surprised when your favorite course wins.
             Once everyone&apos;s in, the tournament admin runs the draw to lock in the official course.
           </p>
 

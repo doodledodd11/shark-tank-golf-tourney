@@ -14,7 +14,7 @@ export default async function AdminRoundsPage() {
     <div>
       <h1 className="font-display text-2xl font-bold text-ink-950">Rounds &amp; Matches</h1>
       <p className="mt-1 text-sm text-ink-700/60">
-        Manage teams, pairings, and matches round by round.
+        Manage teams, twosomes, and matches round by round.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -37,11 +37,11 @@ export default async function AdminRoundsPage() {
                 <p className="mt-1 text-sm text-ink-700/60">
                   {round.teams.length === 0
                     ? "No teams drafted yet"
-                    : `${round.teams.length} teams · ${round.pairings.length} pairings · ${round.matches.length} matches`}
+                    : `${round.teams.length} teams · ${round.pairings.length} twosomes · ${round.matches.length} matches`}
                   {teamA && teamB && round.matches.length > 0 && (
                     <>
                       {" "}
-                      · {teamA.name} {formatPoints(totals.teamA)} — {formatPoints(totals.teamB)} {teamB.name}
+                      · {teamA.name} {formatPoints(totals.teamA)}, {teamB.name} {formatPoints(totals.teamB)}
                     </>
                   )}
                 </p>

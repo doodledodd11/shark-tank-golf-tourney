@@ -12,7 +12,7 @@ export function LiveDraftBanner({ roundId, roundName }: { roundId: string; round
     >
       <span className="inline-flex items-center gap-2">
         <Radio className="h-4 w-4 animate-pulse" />
-        {roundName} draft is live right now — watch it happen
+        {roundName} draft is live right now, watch it happen
       </span>
     </Link>
   );

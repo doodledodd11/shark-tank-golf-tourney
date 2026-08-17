@@ -46,13 +46,13 @@ export function ResultsSummary({ rounds, champions }: { rounds: RoundWithDetails
             </div>
             {teamA && teamB && (
               <p className="mt-2 font-display text-2xl font-bold text-ink-950">
-                {teamA.name} {formatPoints(result.teamA)} — {formatPoints(result.teamB)} {teamB.name}
+                {teamA.name} {formatPoints(result.teamA)}, {teamB.name} {formatPoints(result.teamB)}
               </p>
             )}
             {round.status === "COMPLETE" ? (
               <>
                 {result.needsPlayoff && !advancingTeam && (
-                  <p className="mt-1 text-sm font-semibold text-gold-700">Tied — captain playoff required</p>
+                  <p className="mt-1 text-sm font-semibold text-gold-700">Tied, captain playoff required</p>
                 )}
                 {advancingTeam && (
                   <p className="mt-1 text-sm text-ink-700/60">
@@ -66,9 +66,8 @@ export function ResultsSummary({ rounds, champions }: { rounds: RoundWithDetails
               teamB && (
                 <p className="mt-1 text-sm text-ink-700/50">
                   {result.leader === "TIE" || !result.leader
-                    ? "Currently tied"
-                    : `${result.leader === "A" ? teamA.name : teamB.name} currently leads`}{" "}
-                  — round still in progress
+                    ? "Currently tied, round still in progress"
+                    : `${result.leader === "A" ? teamA.name : teamB.name} currently leads, round still in progress`}
                 </p>
               )
             )}

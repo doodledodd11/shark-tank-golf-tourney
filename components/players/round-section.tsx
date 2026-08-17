@@ -54,10 +54,10 @@ export function RoundSection({ round }: { round: RoundWithDetails }) {
         <div className="rounded-2xl border border-dashed border-gold-500/40 bg-gold-50/40 p-5">
           <p className="flex items-center gap-2 font-semibold text-gold-800">
             <Handshake className="h-4 w-4" />
-            Pairings Awaiting an Opponent
+            Twosomes Awaiting an Opponent
           </p>
           <p className="mt-1 text-sm text-ink-700/60">
-            These locked pairs haven&apos;t been matched up yet — captains are still alternating through the
+            These locked twosomes haven&apos;t been matched up yet. Captains are still alternating through the
             matchmaking process.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -80,7 +80,7 @@ export function RoundSection({ round }: { round: RoundWithDetails }) {
           </div>
         </div>
       ) : (
-        <EmptyState icon={Users2} title="No matches yet" body="Matchups will appear here once pairings are set." />
+        <EmptyState icon={Users2} title="No matches yet" body="Matchups will appear here once twosomes are set." />
       )}
     </div>
   );

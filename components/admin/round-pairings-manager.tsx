@@ -27,10 +27,10 @@ function TeamPairings({ round, team }: { round: RoundWithDetails; team: TeamWith
 
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <p className="font-semibold text-ink-950">{team.name} Pairings</p>
+      <p className="font-semibold text-ink-950">{team.name} Twosomes</p>
 
       <div className="mt-3 space-y-2">
-        {pairings.length === 0 && <p className="text-sm text-ink-700/40">No pairings yet.</p>}
+        {pairings.length === 0 && <p className="text-sm text-ink-700/40">No twosomes yet.</p>}
         {pairings.map((pairing) => (
           <PairingRow key={pairing.id} pairing={pairing} />
         ))}
@@ -62,7 +62,7 @@ function TeamPairings({ round, team }: { round: RoundWithDetails; team: TeamWith
               ))}
             </select>
           </div>
-          <SubmitButton className="px-3 py-1.5 text-xs">Add Pair</SubmitButton>
+          <SubmitButton className="px-3 py-1.5 text-xs">Add Twosome</SubmitButton>
         </form>
       )}
       {state.error && <p className="mt-2 text-xs font-medium text-red-600">{state.error}</p>}
@@ -85,7 +85,7 @@ function PairingRow({ pairing }: { pairing: RoundWithDetails["pairings"][number]
           disabled={pending}
           onClick={() => startTransition(() => togglePairingLocked(pairing.id, !pairing.locked))}
           className="rounded p-1 text-stone-500 hover:bg-stone-200"
-          aria-label={pairing.locked ? "Unlock pairing" : "Lock pairing"}
+          aria-label={pairing.locked ? "Unlock twosome" : "Lock twosome"}
           title={pairing.locked ? "Locked" : "Unlocked"}
         >
           {pairing.locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
@@ -103,7 +103,7 @@ function PairingRow({ pairing }: { pairing: RoundWithDetails["pairings"][number]
             })
           }
           className="rounded p-1 text-stone-500 hover:bg-red-100 hover:text-red-600"
-          aria-label="Delete pairing"
+          aria-label="Delete twosome"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

@@ -16,7 +16,7 @@ export function Footer({ tournamentName, season }: { tournamentName: string; sea
             <div>
               <p className="font-display text-base font-semibold text-cream-50">{tournamentName}</p>
               <p className="mt-1 max-w-xs text-sm text-cream-100/50">
-                A member-run, tiered match-play championship for the club — {season} season.
+                A member-run, tiered match-play championship for the club, {season} season.
               </p>
             </div>
           </div>
@@ -56,7 +56,7 @@ export function Footer({ tournamentName, season }: { tournamentName: string; sea
         <div className="mt-6 flex flex-col-reverse gap-3 text-xs text-cream-100/40 sm:flex-row sm:items-center sm:justify-between">
           <p>No handicap strokes. No mercy. Draft wisely.</p>
           <p>
-            Official results live here — live shot-by-shot scoring, when linked, is provided by third-party
+            Official results live here. Live shot-by-shot scoring, when linked, is provided by third-party
             scoring apps.
           </p>
         </div>

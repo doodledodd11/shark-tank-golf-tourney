@@ -66,26 +66,47 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
       )}
 
       {match.segments.length > 0 && (
-        <div className="mt-5 divide-y divide-fairway-900/5 border-t border-fairway-900/5">
-          {match.segments.map((segment) => {
-            const points = computeSegmentPoints(segment);
-            const decided = segment.winner !== null;
-            const label =
-              segment.format === "OVERALL" ? segment.name : `${segment.name} — ${FORMAT_INFO[segment.format as keyof typeof FORMAT_INFO]?.label ?? segment.format}`;
-            return (
-              <div key={segment.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <span className="text-ink-700/70">{label}</span>
-                {decided ? (
-                  <span className="font-semibold text-ink-950">
-                    Team A {formatPoints(points.teamA)} <span className="text-ink-700/30">|</span> Team B{" "}
-                    {formatPoints(points.teamB)}
-                  </span>
-                ) : (
-                  <span className="text-ink-700/35">Not yet played</span>
-                )}
-              </div>
-            );
-          })}
+        <div className="mt-5 overflow-x-auto border-t border-fairway-900/5">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">
+                <th scope="col" className="py-2 text-left font-semibold">
+                  <span className="sr-only">Segment</span>
+                </th>
+                <th scope="col" className="py-2 text-right font-semibold">
+                  Team A
+                </th>
+                <th scope="col" className="py-2 text-right font-semibold">
+                  Team B
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-fairway-900/5">
+              {match.segments.map((segment) => {
+                const points = computeSegmentPoints(segment);
+                const decided = segment.winner !== null;
+                const label =
+                  segment.format === "OVERALL"
+                    ? segment.name
+                    : `${segment.name}, ${FORMAT_INFO[segment.format as keyof typeof FORMAT_INFO]?.label ?? segment.format}`;
+                return (
+                  <tr key={segment.id}>
+                    <td className="py-2.5 text-ink-700/70">{label}</td>
+                    {decided ? (
+                      <>
+                        <td className="py-2.5 text-right font-semibold text-ink-950">{formatPoints(points.teamA)}</td>
+                        <td className="py-2.5 text-right font-semibold text-ink-950">{formatPoints(points.teamB)}</td>
+                      </>
+                    ) : (
+                      <td colSpan={2} className="py-2.5 text-right text-ink-700/35">
+                        Not yet played
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -94,8 +115,8 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
           {isComplete ? "Match Total" : "Match Total (so far)"}
         </p>
         <p className="mt-0.5 font-display text-2xl font-bold text-fairway-900">
-          {match.teamA?.name ?? "Team A"} {formatPoints(totals.teamA)} — {formatPoints(totals.teamB)}{" "}
-          {match.teamB?.name ?? "Team B"}
+          {match.teamA?.name ?? "Team A"} {formatPoints(totals.teamA)}, {match.teamB?.name ?? "Team B"}{" "}
+          {formatPoints(totals.teamB)}
         </p>
       </div>
     </div>

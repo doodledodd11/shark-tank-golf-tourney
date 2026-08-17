@@ -34,7 +34,8 @@ export default async function AdminMatchPage({ params }: { params: Promise<{ mat
           {getSideNames(match, "A")} vs {getSideNames(match, "B")}
         </p>
         <p className="mt-1 font-display text-xl font-bold text-fairway-800">
-          {formatPoints(totals.teamA)} — {formatPoints(totals.teamB)}
+          {match.teamA?.name ?? "Team A"} {formatPoints(totals.teamA)}, {match.teamB?.name ?? "Team B"}{" "}
+          {formatPoints(totals.teamB)}
         </p>
       </div>
 

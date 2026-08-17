@@ -27,7 +27,7 @@ export async function createPairing(_prevState: FormState, formData: FormData): 
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
   if (parsed.data.player1Id === parsed.data.player2Id) {
-    return { error: "A pairing needs two different players." };
+    return { error: "A twosome needs two different players." };
   }
 
   const existingCount = await prisma.pairing.count({ where: { teamId: parsed.data.teamId } });
@@ -51,7 +51,7 @@ export async function deletePairing(pairingId: string): Promise<void> {
     where: { OR: [{ pairingAId: pairingId }, { pairingBId: pairingId }] },
   });
   if (referencingMatch) {
-    throw new Error("Can't delete a pairing that's already been matched into a match — delete the match first.");
+    throw new Error("Can't delete a twosome that's already been matched into a match. Delete the match first.");
   }
   await prisma.pairing.delete({ where: { id: pairingId } });
   revalidateAll();

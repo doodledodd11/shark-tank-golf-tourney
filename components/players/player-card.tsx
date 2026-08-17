@@ -56,7 +56,7 @@ export function PlayerCard({ player, assignment }: { player: Player; assignment:
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {isEliminated && (
           <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs font-semibold text-stone-600">
-            Eliminated — Round {player.eliminatedRound}
+            Eliminated, Round {player.eliminatedRound}
           </span>
         )}
         {player.status === "ACTIVE" && (

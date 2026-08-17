@@ -60,7 +60,7 @@ export async function createMatchFromPairings(_prevState: FormState, formData: F
     prisma.pairing.findUnique({ where: { id: data.pairingAId } }),
     prisma.pairing.findUnique({ where: { id: data.pairingBId } }),
   ]);
-  if (!pairingA || !pairingB) return { error: "Pairing not found." };
+  if (!pairingA || !pairingB) return { error: "Twosome not found." };
 
   const doubleBooked = await findDoubleBookedPlayer(data.roundId, [
     pairingA.player1Id,
@@ -82,8 +82,8 @@ export async function createMatchFromPairings(_prevState: FormState, formData: F
       pairingAId: pairingA.id,
       pairingBId: pairingB.id,
       // By the time a Match row exists, its four players are already
-      // determined — "Pairing Pending" (the schema default) doesn't apply
-      // here. The next real step is agreeing on a course.
+      // determined — "Twosome Pending" (the schema default's label) doesn't
+      // apply here. The next real step is agreeing on a course.
       status: "COURSE_SELECTION",
       participants: {
         create: [

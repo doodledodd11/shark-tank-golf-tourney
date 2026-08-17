@@ -48,13 +48,13 @@ export function RoundCompletePanel({ round }: { round: RoundWithDetails }) {
 
       {hasMatches && (
         <p className="mt-3 text-sm text-ink-700/70">
-          Current score: {teamA.name} {formatPoints(result.teamA)} — {formatPoints(result.teamB)} {teamB.name}
+          Current score: {teamA.name} {formatPoints(result.teamA)}, {teamB.name} {formatPoints(result.teamB)}
         </p>
       )}
 
       {hasMatches && result.needsPlayoff && !advancingTeam && (
         <p className="mt-1 text-sm font-semibold text-amber-700">
-          Tied — create a Captain Playoff match below and record its result before completing the round.
+          Tied. Create a Captain Playoff match below and record its result before completing the round.
         </p>
       )}
 

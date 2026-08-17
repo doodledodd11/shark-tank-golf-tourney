@@ -41,7 +41,7 @@ export const MATCH_STATUSES = [
 export type MatchStatus = (typeof MATCH_STATUSES)[number];
 
 export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-  PAIRING_PENDING: "Pairing Pending",
+  PAIRING_PENDING: "Twosome Pending",
   COURSE_SELECTION: "Course Selection",
   SCHEDULED: "Scheduled",
   IN_PROGRESS: "In Progress",
@@ -88,11 +88,9 @@ export const TOURNAMENT_STATUS_DESCRIPTIONS: Record<TournamentStatus, string> = 
   COMPLETE: "The tournament is complete and the champions have been crowned.",
 };
 
-/** The 5-node "32 -> 16 -> 8 -> Final 8 -> 4 Champions" ladder shown on the
- * homepage. "8" and "Final 8" are the same 8 players — deliberately shown
- * as two beats for the reveal (survived Round 2, then entering the
- * championship) rather than two different player counts. */
-export const PROGRESSION_STAGES = ["32", "16", "8", "Final 8", "4 Champions"] as const;
+/** The 4-node "32 -> 16 -> 8 -> 4 Champions" ladder shown on the homepage,
+ * one stage per round: Round 1, Round 2, Championship, Champions. */
+export const PROGRESSION_STAGES = ["32", "16", "8", "4 Champions"] as const;
 
 export function getProgressionStageIndex(status: TournamentStatus): number {
   switch (status) {
@@ -104,9 +102,9 @@ export function getProgressionStageIndex(status: TournamentStatus): number {
     case "ROUND_2_IN_PROGRESS":
       return 1;
     case "CHAMPIONSHIP":
-      return 3;
+      return 2;
     case "COMPLETE":
-      return 4;
+      return 3;
     default:
       return 0;
   }

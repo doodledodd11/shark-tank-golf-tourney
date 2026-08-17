@@ -32,8 +32,8 @@ export const SEGMENT_TEMPLATES: Record<string, SegmentTemplateItem[]> = {
 export const SEGMENT_TEMPLATE_LABELS: Record<keyof typeof SEGMENT_TEMPLATES, string> = {
   ROUND_1: "Round 1 (Scramble / Shamble / Overall)",
   ROUND_2: "Round 2 (Best Ball / Alternate Shot / Overall)",
-  CHAMPIONSHIP_TEAM: "Championship — Team Match (2v2)",
-  CHAMPIONSHIP_SINGLES: "Championship — Singles (1v1)",
+  CHAMPIONSHIP_TEAM: "Championship, Team Match (2v2)",
+  CHAMPIONSHIP_SINGLES: "Championship, Singles (1v1)",
   PLAYOFF: "Captain Playoff (1v1)",
   SUDDEN_DEATH: "Sudden-Death Scramble (4v4)",
 };

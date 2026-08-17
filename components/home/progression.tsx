@@ -2,11 +2,11 @@ import { Check } from "lucide-react";
 import { PROGRESSION_STAGES, getProgressionStageIndex, type TournamentStatus } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-const STAGE_CAPTIONS = ["The Full Field", "Round 1 Survivors", "Round 2 Survivors", "Championship", "Champions"];
-// Short glyphs for inside the circles — "Final 8" and "4 Champions" are too
-// long to wrap cleanly in a small circle, so the circle shows just the
-// player count and the full label sits below as a caption instead.
-const CIRCLE_GLYPHS = ["32", "16", "8", "8", "4"];
+const STAGE_CAPTIONS = ["Round 1", "Round 2", "Championship", "Champions"];
+// Short glyphs for inside the circles: "4 Champions" is too long to wrap
+// cleanly in a small circle, so the circle shows just the player count and
+// the full label sits below as a caption instead.
+const CIRCLE_GLYPHS = ["32", "16", "8", "4"];
 
 export function Progression({ status }: { status: TournamentStatus }) {
   const activeIndex = getProgressionStageIndex(status);
