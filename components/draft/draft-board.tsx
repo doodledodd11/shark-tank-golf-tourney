@@ -50,7 +50,9 @@ export function DraftBoard({
   }
 
   const myTurn = Boolean(data.myTeamId) && data.myTeamId === data.onTheClockTeamId && !data.isComplete;
-  const currentTierPool = data.currentTier ? data.undraftedPlayers.filter((p) => p.tier === data.currentTier) : [];
+  const openTiers = data.onTheClockRemainingByTier
+    ? [1, 2, 3, 4].filter((tier) => (data.onTheClockRemainingByTier![tier] ?? 0) > 0)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -65,14 +67,14 @@ export function DraftBoard({
           <div className="flex flex-col items-center gap-1.5">
             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fairway-600">
               <Radio className="h-3.5 w-3.5 animate-pulse" />
-              Live, {TIER_LABELS[data.currentTier ?? 1]}
+              Live Draft
             </p>
             <p className="font-display text-2xl font-bold text-fairway-900">
               {data.teams.find((t) => t.id === data.onTheClockTeamId)?.name ?? "—"} is on the clock
             </p>
             {captainToken && (
               <p className="text-sm text-ink-700/60">
-                {myTurn ? "It's your pick. Choose below." : "Waiting for the other captain to pick…"}
+                {myTurn ? "It's your pick. Choose below, any tier you still need." : "Waiting for the other captain to pick…"}
               </p>
             )}
           </div>
@@ -81,22 +83,33 @@ export function DraftBoard({
 
       {myTurn && (
         <div className="rounded-2xl border border-gold-400/60 bg-gold-50/50 p-5">
-          <p className="font-semibold text-fairway-900">
-            Your Pick, {TIER_LABELS[data.currentTier ?? 1]} ({currentTierPool.length} available)
-          </p>
+          <p className="font-semibold text-fairway-900">Your Pick</p>
+          <p className="text-xs text-ink-700/50">Pick anyone from any tier your team still needs.</p>
           {pickError && <p className="mt-2 text-sm font-medium text-red-600">{pickError}</p>}
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {currentTierPool.map((player) => (
-              <button
-                key={player.id}
-                type="button"
-                disabled={pending}
-                onClick={() => handlePick(player.id)}
-                className="rounded-lg border border-fairway-900/10 bg-white px-3 py-2 text-left text-sm font-semibold text-ink-900 shadow-sm transition-colors hover:border-fairway-600 hover:bg-fairway-50 disabled:opacity-50"
-              >
-                {player.name}
-              </button>
-            ))}
+          <div className="mt-3 space-y-4">
+            {openTiers.map((tier) => {
+              const pool = data.undraftedPlayers.filter((p) => p.tier === tier);
+              return (
+                <div key={tier}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/50">
+                    {TIER_LABELS[tier]}, {data.onTheClockRemainingByTier![tier]} more needed ({pool.length} available)
+                  </p>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {pool.map((player) => (
+                      <button
+                        key={player.id}
+                        type="button"
+                        disabled={pending}
+                        onClick={() => handlePick(player.id)}
+                        className="rounded-lg border border-fairway-900/10 bg-white px-3 py-2 text-left text-sm font-semibold text-ink-900 shadow-sm transition-colors hover:border-fairway-600 hover:bg-fairway-50 disabled:opacity-50"
+                      >
+                        {player.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

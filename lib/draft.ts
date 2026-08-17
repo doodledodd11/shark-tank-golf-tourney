@@ -11,7 +11,7 @@
 import { prisma } from "@/lib/db";
 import { getRoundWithDetails, type RoundWithDetails } from "@/lib/data";
 import { getEligiblePlayersForRound } from "@/lib/player-status";
-import { computeDraftState, type DraftTeam } from "@/lib/draft-logic";
+import { computeDraftState, remainingCapacityByTier, type DraftTeam } from "@/lib/draft-logic";
 
 export interface FormState {
   error?: string;
@@ -29,8 +29,12 @@ export interface DraftBoardData {
     roster: { id: string; name: string; tier: number }[];
   }[];
   undraftedPlayers: { id: string; name: string; tier: number }[];
-  currentTier: number | null;
   onTheClockTeamId: string | null;
+  /** How many more players the on-the-clock team can still take from each
+   * tier (1-4) — null once the draft is complete. Drives which tiers the
+   * pick UI shows as open; a tier a team has already filled is skipped
+   * even though its players may still be undrafted overall. */
+  onTheClockRemainingByTier: Record<number, number> | null;
   picksPerTeamPerTier: number;
   isComplete: boolean;
   myTeamId: string | null;
@@ -147,10 +151,14 @@ export async function submitDraftPickLogic(input: {
 
   const player = eligiblePlayers.find((p) => p.id === input.playerId);
   if (!player) return { error: "That player isn't eligible for this round." };
-  if (player.tier !== state.currentTier) return { error: "That player isn't in the tier currently being drafted." };
 
   const alreadyDrafted = round.teams.some((t) => t.memberships.some((m) => m.playerId === input.playerId));
   if (alreadyDrafted) return { error: "That player has already been drafted." };
+
+  const remaining = remainingCapacityByTier(rosterPlayerIdsByTeam[myTeam.id] ?? [], eligiblePlayers, state.picksPerTeamPerTier);
+  if ((remaining[player.tier] ?? 0) <= 0) {
+    return { error: "Your team has already drafted its full share of that tier." };
+  }
 
   await prisma.teamMembership.create({ data: { teamId: myTeam.id, playerId: input.playerId } });
   return { success: true };
@@ -178,6 +186,10 @@ export async function getDraftBoardData(roundId: string, captainToken?: string |
 
   const myTeam = captainToken ? round.teams.find((t) => t.captainAccessToken === captainToken) : undefined;
 
+  const onTheClockRemainingByTier = state.onTheClockTeamId
+    ? remainingCapacityByTier(rosterPlayerIdsByTeam[state.onTheClockTeamId] ?? [], eligiblePlayers, state.picksPerTeamPerTier)
+    : null;
+
   return {
     round: { id: round.id, name: round.name, number: round.number, playersStart: round.playersStart },
     teams: round.teams.map((t) => ({
@@ -189,8 +201,8 @@ export async function getDraftBoardData(roundId: string, captainToken?: string |
       roster: t.memberships.map((m) => ({ id: m.player.id, name: m.player.name, tier: m.player.tier })),
     })),
     undraftedPlayers,
-    currentTier: state.currentTier,
     onTheClockTeamId: state.onTheClockTeamId,
+    onTheClockRemainingByTier,
     picksPerTeamPerTier: state.picksPerTeamPerTier,
     isComplete: state.isComplete,
     myTeamId: myTeam?.id ?? null,

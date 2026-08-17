@@ -408,26 +408,23 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
     expect(result.error).toBeTruthy();
   });
 
-  // Longer timeout than the file default: this drives a full 32-player
-  // draft through ~30 sequential submitDraftPickLogic calls, each its own
-  // round trip to Postgres, and simulates a real multi-pick draft rather
-  // than mocking the loop away.
-  it("enforces turn order, tier restriction, and token validity, and runs a full draft to completion", async () => {
+  it("enforces turn order and token validity, and allows drafting out of tier order", async () => {
     const { round, byTier } = await makeFullFieldRound();
     const captainA = byTier[1]![0]!;
     const captainB = byTier[1]![1]!;
     const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
     const teamAToken = started.tokens!.teamAToken;
-    const teamBToken = started.tokens!.teamBToken;
 
     const board1 = await getDraftBoardData(round.id);
-    expect(board1!.currentTier).toBe(1);
     expect(board1!.onTheClockTeamId).toBe(board1!.teams.find((t) => t.order === 0)!.id);
+    // Team A's captain already took its one tier-1 slot; every other tier
+    // (including tier 1's remaining 3) is open from the very first pick.
+    expect(board1!.onTheClockRemainingByTier).toEqual({ 1: 3, 2: 4, 3: 4, 4: 4 });
 
     // Wrong team's turn.
     const outOfTurn = await submitDraftPickLogic({
       roundId: round.id,
-      captainToken: teamBToken,
+      captainToken: started.tokens!.teamBToken,
       playerId: byTier[1]![2]!.id,
     });
     expect(outOfTurn.error).toBeTruthy();
@@ -436,12 +433,75 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
     const badToken = await submitDraftPickLogic({ roundId: round.id, captainToken: "not-a-real-token", playerId: byTier[1]![2]!.id });
     expect(badToken.error).toBeTruthy();
 
-    // Right team, wrong tier (tier 1 is active, this player is tier 2).
-    const wrongTier = await submitDraftPickLogic({ roundId: round.id, captainToken: teamAToken, playerId: byTier[2]![0]!.id });
-    expect(wrongTier.error).toBeTruthy();
+    // Right team, out-of-tier-order pick (a tier-4 player, well before
+    // tier 1 is anywhere near done) — this is exactly what's now allowed.
+    const tierJump = await submitDraftPickLogic({ roundId: round.id, captainToken: teamAToken, playerId: byTier[4]![0]!.id });
+    expect(tierJump.success).toBe(true);
 
-    // Drive the draft to completion by always asking the board who's on
-    // the clock and handing them the next available player in that tier.
+    const board2 = await getDraftBoardData(round.id);
+    expect(board2!.teams.find((t) => t.order === 0)!.roster.map((p) => p.id).sort()).toEqual(
+      [captainA.id, byTier[4]![0]!.id].sort(),
+    );
+  });
+
+  it("rejects a pick once a team's tier quota is full, even if that tier still has undrafted players", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[1]![1]!;
+    const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+
+    // Fill the rest of Team A's tier-1 quota directly (the captain already
+    // took one), bypassing the pick flow — this test is only about the
+    // capacity check, not about getting there through real alternating
+    // turns. Team B gets an equal number of (unrelated-tier) picks too, so
+    // the two teams stay tied on total picks and it's still Team A's turn
+    // — otherwise Team B, now behind, would be on the clock instead.
+    const teamA = await prisma.team.findFirstOrThrow({ where: { roundId: round.id, order: 0 } });
+    const teamB = await prisma.team.findFirstOrThrow({ where: { roundId: round.id, order: 1 } });
+    await prisma.teamMembership.createMany({
+      data: [
+        ...[byTier[1]![2]!, byTier[1]![3]!, byTier[1]![4]!].map((p) => ({ teamId: teamA.id, playerId: p.id })),
+        ...[byTier[2]![2]!, byTier[2]![3]!, byTier[2]![4]!].map((p) => ({ teamId: teamB.id, playerId: p.id })),
+      ],
+    });
+
+    const board = await getDraftBoardData(round.id);
+    expect(board!.onTheClockTeamId).toBe(teamA.id);
+    expect(board!.onTheClockRemainingByTier).toEqual({ 1: 0, 2: 4, 3: 4, 4: 4 });
+
+    // Tier 1 still has undrafted players (byTier[1][5..7]) — but Team A's
+    // quota for that tier is already full, so the pick should be refused.
+    const overCap = await submitDraftPickLogic({
+      roundId: round.id,
+      captainToken: started.tokens!.teamAToken,
+      playerId: byTier[1]![5]!.id,
+    });
+    expect(overCap.error).toBeTruthy();
+
+    // The same player's tier-4 counterpart is fine, since tier 4 is wide open.
+    const ok = await submitDraftPickLogic({
+      roundId: round.id,
+      captainToken: started.tokens!.teamAToken,
+      playerId: byTier[4]![0]!.id,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  // Longer timeout than the file default: this drives a full 32-player
+  // draft through ~30 sequential submitDraftPickLogic calls, each its own
+  // round trip to Postgres, and simulates a real multi-pick draft rather
+  // than mocking the loop away.
+  it("runs a full draft to completion with tiers filled out of order, ending perfectly tier-balanced", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[1]![1]!;
+    const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    const teamAToken = started.tokens!.teamAToken;
+    const teamBToken = started.tokens!.teamBToken;
+
+    // Drive the draft to completion — pick from whichever tier is open
+    // for whoever's on the clock, deliberately favoring the *highest*
+    // open tier first each time to prove tiers don't have to fill in order.
     let guard = 0;
     for (;;) {
       guard++;
@@ -451,7 +511,8 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
 
       const onTheClock = board!.teams.find((t) => t.id === board!.onTheClockTeamId)!;
       const token = onTheClock.order === 0 ? teamAToken : teamBToken;
-      const pick = board!.undraftedPlayers.find((p) => p.tier === board!.currentTier)!;
+      const openTier = [4, 3, 2, 1].find((t) => (board!.onTheClockRemainingByTier?.[t] ?? 0) > 0)!;
+      const pick = board!.undraftedPlayers.find((p) => p.tier === openTier)!;
 
       const result = await submitDraftPickLogic({ roundId: round.id, captainToken: token, playerId: pick.id });
       expect(result.success).toBe(true);
