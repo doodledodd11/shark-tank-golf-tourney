@@ -6,6 +6,7 @@ import { requireAdminSession } from "@/lib/dal";
 import {
   startDraftLogic,
   submitDraftPickLogic,
+  cancelDraftLogic,
   getDraftBoardData,
   type FormState,
   type DraftBoardData,
@@ -29,6 +30,13 @@ export async function startDraft(input: {
   await requireAdminSession();
   const data = startDraftSchema.parse(input);
   const result = await startDraftLogic(data);
+  if (result.success) revalidateAll();
+  return result;
+}
+
+export async function cancelDraft(roundId: string): Promise<FormState> {
+  await requireAdminSession();
+  const result = await cancelDraftLogic(roundId);
   if (result.success) revalidateAll();
   return result;
 }

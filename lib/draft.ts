@@ -125,6 +125,27 @@ export async function startDraftLogic(input: {
   return { success: true, tokens: { teamAToken, teamBToken } };
 }
 
+/** Tears down an in-progress (or even finished) live draft for a round:
+ * removes both teams, which cascades to their memberships and any locked
+ * pairings, and removes the round's matches first since Match's team and
+ * pairing columns are optional FKs without cascade — deleting Team first
+ * would just null those columns out rather than remove the Match rows. The
+ * round itself, its status, and its deadline are untouched, so the admin
+ * lands back on the same "no roster yet" setup screen and can start a
+ * fresh draft immediately. */
+export async function cancelDraftLogic(roundId: string): Promise<FormState> {
+  const round = await getRoundWithDetails(roundId);
+  if (!round) return { error: "Round not found." };
+  if (round.teams.length === 0) return { error: "There's no draft to cancel for this round." };
+
+  await prisma.$transaction([
+    prisma.match.deleteMany({ where: { roundId } }),
+    prisma.team.deleteMany({ where: { roundId } }),
+  ]);
+
+  return { success: true };
+}
+
 /** Submits one captain's pick. The only authorization is the token match —
  * see the file header for why that's correct here, unlike everywhere else
  * in the app. Re-derives whose turn it actually is (never trusts the

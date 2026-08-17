@@ -14,7 +14,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { completeRoundLogic } from "@/lib/round-completion";
 import { setRoundRostersLogic } from "@/lib/round-roster";
-import { startDraftLogic, submitDraftPickLogic, getDraftBoardData } from "@/lib/draft";
+import { startDraftLogic, submitDraftPickLogic, cancelDraftLogic, getDraftBoardData } from "@/lib/draft";
 
 const TEST_SEASON = 2099;
 const prisma = new PrismaClient();
@@ -530,4 +530,34 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
     });
     expect(afterComplete.error).toBeTruthy();
   }, 120_000);
+
+  it("refuses to cancel a draft that hasn't been started", async () => {
+    const { round } = await makeFullFieldRound();
+    const result = await cancelDraftLogic(round.id);
+    expect(result.error).toBeTruthy();
+  });
+
+  it("cancels an in-progress draft, wiping both teams so a fresh draft can start", async () => {
+    const { round, byTier } = await makeFullFieldRound();
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[1]![1]!;
+    const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    await submitDraftPickLogic({ roundId: round.id, captainToken: started.tokens!.teamAToken, playerId: byTier[1]![2]!.id });
+
+    const result = await cancelDraftLogic(round.id);
+    expect(result.success).toBe(true);
+
+    // Teams are gone, which cascades to their memberships and pairings too.
+    const teams = await prisma.team.findMany({ where: { roundId: round.id } });
+    expect(teams).toHaveLength(0);
+
+    // The round itself, and its status, are untouched — only the draft's
+    // own rows are removed.
+    const stillThere = await prisma.round.findUniqueOrThrow({ where: { id: round.id } });
+    expect(stillThere.id).toBe(round.id);
+
+    // A fresh draft can be started right away.
+    const restarted = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    expect(restarted.success).toBe(true);
+  });
 });

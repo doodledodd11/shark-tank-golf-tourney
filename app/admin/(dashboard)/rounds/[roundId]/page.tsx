@@ -51,7 +51,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
         {round.teams.length === 0 ? (
           <RoundSetupChoice roundId={round.id} eligiblePlayers={eligiblePlayers} />
         ) : draftInProgress ? (
-          <LiveDraftAdminPanel roundId={round.id} teams={round.teams} statusLabel={statusLabel} />
+          <LiveDraftAdminPanel roundId={round.id} roundName={round.name} teams={round.teams} statusLabel={statusLabel} />
         ) : (
           <>
             <p className="mb-3 text-xs text-ink-700/50">
