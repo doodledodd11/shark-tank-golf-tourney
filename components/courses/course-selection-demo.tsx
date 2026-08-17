@@ -2,52 +2,47 @@
 
 import { useRef, useState } from "react";
 import type { Course } from "@prisma/client";
-import { FlaskConical, PartyPopper, Shuffle } from "lucide-react";
+import { PartyPopper, Shuffle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { pickRandomCourse } from "@/lib/tournament-logic";
-import { cn } from "@/lib/utils";
+
+const DEMO_PLAYERS = ["Player 1", "Player 2", "Player 3", "Player 4"];
 
 /** A self-contained, client-only sandbox for the random-draw mechanic used
- * by CourseSelectionTool — no server action, no database write, nothing
- * here is ever tied to a real match. It exists purely so a visitor can see
- * how the draw works before any real match needs one. */
+ * by CourseSelectionTool — same layout, but no server action or database
+ * write, and never tied to a real match. The dashed border and "Example"
+ * badge are the only things that mark it as a stand-in for the real tool. */
 export function CourseSelectionDemo({ courses }: { courses: Course[] }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selections, setSelections] = useState<Record<string, string>>({});
   const [revealing, setRevealing] = useState(false);
   const [cycleLabel, setCycleLabel] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (courses.length === 0) return null;
 
-  function toggle(id: string) {
+  function handleSelect(player: string, courseId: string) {
     setResult(null);
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+    setSelections((prev) => ({ ...prev, [player]: courseId }));
   }
 
-  function selectAll() {
-    setResult(null);
-    setSelectedIds(courses.map((c) => c.id));
-  }
-
-  function clearAll() {
-    setResult(null);
-    setSelectedIds([]);
-  }
+  const pool = Object.values(selections)
+    .map((courseId) => courses.find((c) => c.id === courseId))
+    .filter((c): c is Course => Boolean(c));
 
   function handleRun() {
-    if (selectedIds.length === 0 || revealing) return;
+    if (pool.length === 0 || revealing) return;
     setResult(null);
     setRevealing(true);
 
     intervalRef.current = setInterval(() => {
-      const randomId = selectedIds[Math.floor(Math.random() * selectedIds.length)];
-      setCycleLabel(courses.find((c) => c.id === randomId)?.name ?? null);
+      const random = pool[Math.floor(Math.random() * pool.length)];
+      setCycleLabel(random?.name ?? null);
     }, 90);
 
-    timeoutRef.current = setTimeout(() => {
+    setTimeout(() => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      const winnerId = pickRandomCourse(selectedIds.map((id) => ({ courseId: id })));
+      const winnerId = pickRandomCourse(pool.map((c) => ({ courseId: c.id })));
       setCycleLabel(null);
       setResult(courses.find((c) => c.id === winnerId)?.name ?? null);
       setRevealing(false);
@@ -56,54 +51,54 @@ export function CourseSelectionDemo({ courses }: { courses: Course[] }) {
 
   return (
     <div className="rounded-2xl border-2 border-dashed border-gold-500/60 bg-gold-50/40 p-5 sm:p-6">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-500 px-3 py-1 text-xs font-bold uppercase tracking-wide text-fairway-950">
-        <FlaskConical className="h-3.5 w-3.5" />
-        Example Only, Not a Real Match
+      <span className="inline-flex items-center rounded-full bg-gold-500 px-3 py-1 text-xs font-bold uppercase tracking-wide text-fairway-950">
+        Example
       </span>
-      <p className="mt-3 text-sm text-ink-700/70">
-        This box is just here to show how the random draw works. Check off a few courses like you&apos;re
-        standing in for four players, then run the draw. Nothing here is saved or affects any real match.
-      </p>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {courses.map((c) => {
-          const active = selectedIds.includes(c.id);
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => toggle(c.id)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-fairway-700 bg-fairway-700 text-cream-50"
-                  : "border-fairway-900/15 bg-white text-ink-700 hover:border-fairway-400",
-              )}
-            >
-              {c.name}
-            </button>
-          );
-        })}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {DEMO_PLAYERS.map((player) => (
+          <div key={player}>
+            <label className="mb-1 block text-sm font-semibold text-ink-900">{player}&apos;s choice</label>
+            <Select value={selections[player] ?? undefined} onValueChange={(v) => handleSelect(player, v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a course" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs font-semibold">
-        <button type="button" onClick={selectAll} className="text-fairway-700 hover:text-fairway-900">
-          Select All
-        </button>
-        <button type="button" onClick={clearAll} className="text-ink-700/50 hover:text-ink-700">
-          Clear
-        </button>
-      </div>
+      {pool.length > 0 && (
+        <div className="mt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">
+            Random Draw Pool ({pool.length} {pool.length === 1 ? "entry" : "entries"} so far)
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {pool.map((c, i) => (
+              <span key={`${c.id}-${i}`} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-fairway-700">
+                {c.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col items-center gap-3 border-t border-gold-500/25 pt-5">
         <button
           type="button"
           onClick={handleRun}
-          disabled={selectedIds.length === 0 || revealing}
-          className="flex items-center gap-2 rounded-full bg-fairway-900 px-6 py-3 font-bold text-cream-50 shadow transition-transform hover:scale-105 hover:bg-fairway-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+          disabled={pool.length === 0 || revealing}
+          className="flex items-center gap-2 rounded-full bg-gold-500 px-6 py-3 font-bold text-fairway-950 shadow transition-transform hover:scale-105 hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
         >
           <Shuffle className={revealing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-          {revealing ? "Drawing…" : "Run Example Draw"}
+          {revealing ? "Testing…" : "Test"}
         </button>
 
         {cycleLabel && <p className="font-display text-xl font-bold text-ink-400">{cycleLabel}</p>}

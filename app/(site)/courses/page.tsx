@@ -1,7 +1,7 @@
 import { getActiveTournament, getCourses, getRoundsWithDetails } from "@/lib/data";
 import { isAdminSession } from "@/lib/dal";
 import { PageHeader } from "@/components/shared/page-header";
-import { CourseCard } from "@/components/courses/course-card";
+import { ApprovedCoursesSection } from "@/components/courses/approved-courses-section";
 import { CourseSelectionTool } from "@/components/courses/course-selection-tool";
 import { CourseSelectionDemo } from "@/components/courses/course-selection-demo";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -33,12 +33,7 @@ export default async function CoursesPage() {
       />
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <h2 className="font-display text-2xl font-bold text-fairway-900">Approved Tournament Courses</h2>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courses.map((course) => (
-            <CourseCard key={course.id} course={course} />
-          ))}
-        </div>
+        <ApprovedCoursesSection courses={courses} />
 
         <div className="mt-14">
           <h2 className="font-display text-2xl font-bold text-fairway-900">Matches Needing a Course</h2>
