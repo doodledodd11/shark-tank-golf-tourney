@@ -63,8 +63,8 @@ export default function RulesPage() {
             <RuleSection id="tiers" number={2} title="Skill Tiers">
               <p>
                 All 32 players are ranked into four tiers of eight, from strongest (Tier 1) to most developing
-                (Tier 4). Tiers exist purely to keep the draft balanced. Every team in every round ends up with an
-                even spread across all four tiers, so no team is stacked with the strongest (or weakest) players.
+                (Tier 4). Tiers are a guide for captains building a balanced roster, not a requirement, so a captain
+                is free to lean into a tier that&apos;s proving itself if that&apos;s the better call.
               </p>
               <p>
                 A player&apos;s handicap index may be shown on their profile for informational purposes only. It has
@@ -74,21 +74,22 @@ export default function RulesPage() {
 
             <RuleSection id="draft" number={3} title="Draft Rules">
               <p>
-                Two captains draft balanced rosters one tier at a time, so both teams finish with an identical tier
-                composition even though the individual players differ:
+                Two captains alternate picks, turn by turn, until both rosters are full. A captain can take any
+                undrafted player from any tier on their turn, no matter what their roster looks like so far. The
+                per-tier numbers below are a recommended target for a balanced roster, not a rule:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>
-                  <strong>Round 1 draft:</strong> Team A and Team B each draft 4 players from every tier, 16
-                  players per team, 32 total.
+                  <strong>Round 1 draft:</strong> Team A and Team B each draft 16 players, 32 total (recommended:
+                  4 per tier).
                 </li>
                 <li>
                   <strong>Round 2 draft:</strong> the 16 survivors are completely redrafted. Team A and Team B each
-                  draft 2 players from every tier, 8 players per team.
+                  draft 8 players (recommended: 2 per tier).
                 </li>
                 <li>
-                  <strong>Championship draft:</strong> the final 8 are split into two 4-player teams, each getting
-                  exactly one player from each of the four original tiers.
+                  <strong>Championship draft:</strong> the final 8 are split into two 4-player teams (recommended:
+                  1 per tier).
                 </li>
               </ul>
               <p>Nobody keeps their previous team or partner between rounds. Every draft starts from scratch.</p>
@@ -154,8 +155,8 @@ export default function RulesPage() {
 
             <RuleSection id="championship" number={9} title="Championship, Final 8">
               <p>
-                The last 8 players are redrafted one final time into two 4-player teams, each getting exactly one
-                player from every original skill tier. The championship spans roughly 36 holes:
+                The last 8 players are redrafted one final time into two 4-player teams. The championship spans
+                roughly 36 holes:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>

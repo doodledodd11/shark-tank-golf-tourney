@@ -28,7 +28,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
 
   const onTheClockTeam = draftBoard?.teams.find((t) => t.id === draftBoard.onTheClockTeamId);
   const totalDrafted = draftBoard?.teams.reduce((sum, t) => sum + t.roster.length, 0) ?? 0;
-  const totalNeeded = draftBoard ? draftBoard.picksPerTeamPerTier * 4 * 2 : 0;
+  const totalNeeded = draftBoard ? draftBoard.recommendedPicksPerTier * 4 * 2 : 0;
   const statusLabel =
     draftBoard && !draftBoard.isComplete
       ? `${onTheClockTeam?.name ?? "?"}'s turn (${totalDrafted} of ${totalNeeded} drafted)`

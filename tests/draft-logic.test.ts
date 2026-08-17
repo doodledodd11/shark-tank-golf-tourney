@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeDraftState,
-  remainingCapacityByTier,
+  recommendedRemainingByTier,
   undraftedPlayersInTier,
   type DraftPlayer,
   type DraftTeam,
@@ -21,7 +21,7 @@ const round1Pool: DraftPlayer[] = [1, 2, 3, 4].flatMap((tier) => tierPlayers(tie
 describe("computeDraftState", () => {
   it("opens a fresh Round 1 draft with the order-0 team on the clock", () => {
     const state = computeDraftState(teams, {}, round1Pool, 32);
-    expect(state).toEqual({ onTheClockTeamId: "teamA", picksPerTeamPerTier: 4, isComplete: false });
+    expect(state).toEqual({ onTheClockTeamId: "teamA", recommendedPicksPerTier: 4, isComplete: false });
   });
 
   it("alternates strictly by total picks made (A, B, A, B, ...), independent of tier", () => {
@@ -64,7 +64,7 @@ describe("computeDraftState", () => {
       teamB: [...tier1Ids.slice(4, 8), ...tier2Ids.slice(4, 8), ...tier3Ids.slice(4, 8), ...tier4Ids.slice(4, 8)],
     };
     const state = computeDraftState(teams, roster, round1Pool, 32);
-    expect(state).toEqual({ onTheClockTeamId: null, picksPerTeamPerTier: 4, isComplete: true });
+    expect(state).toEqual({ onTheClockTeamId: null, recommendedPicksPerTier: 4, isComplete: true });
   });
 
   it("self-corrects toward balance if the two teams' pick counts get out of sync", () => {
@@ -84,18 +84,18 @@ describe("computeDraftState", () => {
     expect(state.isComplete).toBe(false);
   });
 
-  it("scales picksPerTeamPerTier from playersStart (Round 2: 2 each, Championship: 1 each)", () => {
+  it("scales recommendedPicksPerTier from playersStart (Round 2: 2 each, Championship: 1 each)", () => {
     const round2Pool: DraftPlayer[] = [1, 2, 3, 4].flatMap((tier) => tierPlayers(tier, 4, `t${tier}-`));
-    expect(computeDraftState(teams, {}, round2Pool, 16).picksPerTeamPerTier).toBe(2);
+    expect(computeDraftState(teams, {}, round2Pool, 16).recommendedPicksPerTier).toBe(2);
 
     const champPool: DraftPlayer[] = [1, 2, 3, 4].flatMap((tier) => tierPlayers(tier, 2, `t${tier}-`));
-    expect(computeDraftState(teams, {}, champPool, 8).picksPerTeamPerTier).toBe(1);
+    expect(computeDraftState(teams, {}, champPool, 8).recommendedPicksPerTier).toBe(1);
   });
 });
 
-describe("remainingCapacityByTier", () => {
-  it("starts every tier at full capacity for an empty roster", () => {
-    expect(remainingCapacityByTier([], round1Pool, 4)).toEqual({ 1: 4, 2: 4, 3: 4, 4: 4 });
+describe("recommendedRemainingByTier", () => {
+  it("starts every tier at the full recommended target for an empty roster", () => {
+    expect(recommendedRemainingByTier([], round1Pool, 4)).toEqual({ 1: 4, 2: 4, 3: 4, 4: 4 });
   });
 
   it("counts down only the tiers actually picked from", () => {
@@ -104,12 +104,12 @@ describe("remainingCapacityByTier", () => {
       round1Pool.filter((p) => p.tier === 4)[1]!.id,
       round1Pool.find((p) => p.tier === 2)!.id,
     ];
-    expect(remainingCapacityByTier(roster, round1Pool, 4)).toEqual({ 1: 4, 2: 3, 3: 4, 4: 2 });
+    expect(recommendedRemainingByTier(roster, round1Pool, 4)).toEqual({ 1: 4, 2: 3, 3: 4, 4: 2 });
   });
 
-  it("floors at zero rather than going negative if a tier is over-full", () => {
+  it("floors at zero rather than going negative once a tier is past its recommended target", () => {
     const tier1Ids = round1Pool.filter((p) => p.tier === 1).map((p) => p.id);
-    expect(remainingCapacityByTier(tier1Ids, round1Pool, 4)[1]).toBe(0);
+    expect(recommendedRemainingByTier(tier1Ids, round1Pool, 4)[1]).toBe(0);
   });
 });
 

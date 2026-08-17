@@ -50,9 +50,7 @@ export function DraftBoard({
   }
 
   const myTurn = Boolean(data.myTeamId) && data.myTeamId === data.onTheClockTeamId && !data.isComplete;
-  const openTiers = data.onTheClockRemainingByTier
-    ? [1, 2, 3, 4].filter((tier) => (data.onTheClockRemainingByTier![tier] ?? 0) > 0)
-    : [];
+  const tiersWithPlayers = [1, 2, 3, 4].filter((tier) => data.undraftedPlayers.some((p) => p.tier === tier));
 
   return (
     <div className="space-y-6">
@@ -74,7 +72,7 @@ export function DraftBoard({
             </p>
             {captainToken && (
               <p className="text-sm text-ink-700/60">
-                {myTurn ? "It's your pick. Choose below, any tier you still need." : "Waiting for the other captain to pick…"}
+                {myTurn ? "It's your pick. Choose anyone from any tier below." : "Waiting for the other captain to pick…"}
               </p>
             )}
           </div>
@@ -84,15 +82,20 @@ export function DraftBoard({
       {myTurn && (
         <div className="rounded-2xl border border-gold-400/60 bg-gold-50/50 p-5">
           <p className="font-semibold text-fairway-900">Your Pick</p>
-          <p className="text-xs text-ink-700/50">Pick anyone from any tier your team still needs.</p>
+          <p className="text-xs text-ink-700/50">
+            Pick anyone from any tier. The tier counts below are a suggested target for a balanced
+            roster, not a requirement.
+          </p>
           {pickError && <p className="mt-2 text-sm font-medium text-red-600">{pickError}</p>}
           <div className="mt-3 space-y-4">
-            {openTiers.map((tier) => {
+            {tiersWithPlayers.map((tier) => {
               const pool = data.undraftedPlayers.filter((p) => p.tier === tier);
+              const recommended = data.onTheClockRecommendedByTier?.[tier] ?? 0;
               return (
                 <div key={tier}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/50">
-                    {TIER_LABELS[tier]}, {data.onTheClockRemainingByTier![tier]} more needed ({pool.length} available)
+                    {TIER_LABELS[tier]} ({pool.length} available)
+                    {recommended > 0 && <span className="normal-case text-ink-700/40"> · {recommended} recommended</span>}
                   </p>
                   <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {pool.map((player) => (

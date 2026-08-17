@@ -5,13 +5,12 @@
 // could (a failed request, a retried pick, an admin manual fix — none of
 // those can leave the turn indicator lying about who's on the clock).
 //
-// Picks are NOT locked to a single "current tier" in order — a captain can
-// take any undrafted player from any tier that their own team hasn't
-// already filled, on their turn. Tiers still cap how many of each a team
-// can end up with (so rosters stay balanced by the final pick), but the
-// *order* players get taken in is entirely up to the captains — e.g. a
-// tier-4 player who stood out in Round 1 can be drafted before a team has
-// finished taking its tier-1 players.
+// Picks are NOT locked to a single "current tier" in order, and tiers are
+// NOT a hard cap either — a captain can take any undrafted player from any
+// tier at any point on their turn, even one their team has already taken
+// plenty from. Tier counts are shown to captains purely as a recommended
+// target for a balanced roster; nothing server-side enforces them. Only the
+// total roster size per team is a real constraint.
 
 export interface DraftTeam {
   id: string;
@@ -26,19 +25,20 @@ export interface DraftPlayer {
 export interface DraftState {
   /** Team id whose pick it is, or null once the draft is complete. */
   onTheClockTeamId: string | null;
-  /** How many players each team drafts from every tier — round.playersStart / 8. */
-  picksPerTeamPerTier: number;
+  /** Recommended (not enforced) players per tier for a balanced roster — round.playersStart / 8. */
+  recommendedPicksPerTier: number;
   isComplete: boolean;
 }
 
-/** How many more players the given roster still needs from each tier
- * (1-4), capped at zero once a tier is full. Used both to validate a pick
- * server-side and to tell the UI which tiers are still open for whoever's
- * on the clock. */
-export function remainingCapacityByTier(
+/** How many more players the given roster would need from each tier (1-4)
+ * to hit the recommended balanced target, floored at zero once a tier's
+ * target is met. Purely advisory — nothing stops a captain from picking
+ * from a tier that's already at or past this. Used only to render the
+ * "recommended" hint in the draft UI. */
+export function recommendedRemainingByTier(
   rosterPlayerIds: string[],
   eligiblePlayers: DraftPlayer[],
-  picksPerTeamPerTier: number,
+  recommendedPicksPerTier: number,
 ): Record<number, number> {
   const tierOfPlayer = new Map(eligiblePlayers.map((p) => [p.id, p.tier]));
   const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
@@ -48,7 +48,7 @@ export function remainingCapacityByTier(
   }
   const remaining: Record<number, number> = {};
   for (let tier = 1; tier <= 4; tier++) {
-    remaining[tier] = Math.max(0, picksPerTeamPerTier - (counts[tier] ?? 0));
+    remaining[tier] = Math.max(0, recommendedPicksPerTier - (counts[tier] ?? 0));
   }
   return remaining;
 }
@@ -56,9 +56,10 @@ export function remainingCapacityByTier(
 /**
  * Figures out the current state of a round's live draft from its actual
  * roster (`rosterPlayerIds` per team) against the pool of players eligible
- * for the round. `playersStart` drives how many picks each team gets per
- * tier (32 -> 4, 16 -> 2, 8 -> 1 — see the Draft Rules on /rules), which
- * caps each team's roster but no longer dictates draft order.
+ * for the round. `playersStart` drives each team's total roster size and
+ * the recommended per-tier target (32 -> 4, 16 -> 2, 8 -> 1 — see the Draft
+ * Rules on /rules); the total is a real constraint, the per-tier split is
+ * advisory only.
  */
 export function computeDraftState(
   teams: [DraftTeam, DraftTeam],
@@ -66,14 +67,14 @@ export function computeDraftState(
   eligiblePlayers: DraftPlayer[],
   playersStart: number,
 ): DraftState {
-  const picksPerTeamPerTier = playersStart / 8;
-  const totalPicksPerTeam = picksPerTeamPerTier * 4;
+  const recommendedPicksPerTier = playersStart / 8;
+  const totalPicksPerTeam = recommendedPicksPerTier * 4;
   const [teamX, teamY] = teams;
   const xMade = (rosterPlayerIdsByTeam[teamX.id] ?? []).length;
   const yMade = (rosterPlayerIdsByTeam[teamY.id] ?? []).length;
 
   if (xMade >= totalPicksPerTeam && yMade >= totalPicksPerTeam) {
-    return { onTheClockTeamId: null, picksPerTeamPerTier, isComplete: true };
+    return { onTheClockTeamId: null, recommendedPicksPerTier, isComplete: true };
   }
 
   // Whichever team has made fewer picks goes next (a tie favors the
@@ -85,7 +86,7 @@ export function computeDraftState(
   const yEligible = yMade < totalPicksPerTeam;
   const onTheClock = xEligible && (!yEligible || xMade <= yMade) ? teamX : teamY;
 
-  return { onTheClockTeamId: onTheClock.id, picksPerTeamPerTier, isComplete: false };
+  return { onTheClockTeamId: onTheClock.id, recommendedPicksPerTier, isComplete: false };
 }
 
 /** The undrafted pool for one specific tier (a team may have several tiers
