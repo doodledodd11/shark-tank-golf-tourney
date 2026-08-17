@@ -3,6 +3,7 @@ import { isAdminSession } from "@/lib/dal";
 import { PageHeader } from "@/components/shared/page-header";
 import { CourseCard } from "@/components/courses/course-card";
 import { CourseSelectionTool } from "@/components/courses/course-selection-tool";
+import { CourseSelectionDemo } from "@/components/courses/course-selection-demo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MapPinned } from "lucide-react";
 
@@ -46,6 +47,10 @@ export default async function CoursesPage() {
             entries in the random draw. Pick honestly, or don&apos;t be surprised when your favorite course wins.
             Once everyone&apos;s in, the tournament admin runs the draw to lock in the official course.
           </p>
+
+          <div className="mt-6">
+            <CourseSelectionDemo courses={selectableCourses} />
+          </div>
 
           {matchesNeedingSelection.length === 0 ? (
             <div className="mt-6">
