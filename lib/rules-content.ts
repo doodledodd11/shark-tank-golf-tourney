@@ -9,11 +9,11 @@ export interface HowItWorksStep {
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     title: "Four skill tiers",
-    body: "All 32 players are ranked into four tiers of eight. Tiers keep every team balanced. There are no handicap strokes during matches, so the draft is what levels the field.",
+    body: "All 32 players are ranked into four tiers of eight. Tiers are a guide for building a balanced roster, not a requirement. There are no handicap strokes during matches, so the draft is what levels the field.",
   },
   {
-    title: "Captains draft balanced teams",
-    body: "Two captains build their rosters one tier at a time, so both teams end up with the same tier composition even though the individual players differ.",
+    title: "Captains draft their own teams",
+    body: "Two captains alternate picks, turn by turn, choosing any undrafted player from any tier. Tier counts are shown as a recommended target for balance, but a captain can lean into a tier that's proving itself.",
   },
   {
     title: "Teams privately build twosomes",
@@ -33,10 +33,10 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
   {
     title: "Survivors are completely redrafted",
-    body: "Nobody keeps their old team or partner. Surviving players are drafted again from scratch, still balanced by tier.",
+    body: "Nobody keeps their old team or partner. Surviving players are drafted again from scratch, with tiers again used only as a recommended guide.",
   },
   {
     title: "Final 8 play a 4v4 championship",
-    body: "The last 8 players split into two 4-man teams, one from each original tier, for a two-round championship: team matches, then singles.",
+    body: "The last 8 players split into two 4-man teams for a two-round championship: team matches, then singles.",
   },
 ];
