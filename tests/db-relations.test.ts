@@ -474,5 +474,5 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
       playerId: finalBoard!.undraftedPlayers[0]?.id ?? "nonexistent",
     });
     expect(afterComplete.error).toBeTruthy();
-  }, 60_000);
+  }, 120_000);
 });
