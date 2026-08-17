@@ -90,7 +90,7 @@ export const TOURNAMENT_STATUS_DESCRIPTIONS: Record<TournamentStatus, string> = 
 
 /** The 4-node "32 -> 16 -> 8 -> 4 Champions" ladder shown on the homepage,
  * one stage per round: Round 1, Round 2, Championship, Champions. */
-export const PROGRESSION_STAGES = ["32", "16", "8", "4 Champions"] as const;
+export const PROGRESSION_STAGES = ["32 Players", "16 Players", "8 Players", "4 Champions"] as const;
 
 export function getProgressionStageIndex(status: TournamentStatus): number {
   switch (status) {
