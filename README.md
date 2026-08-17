@@ -538,6 +538,13 @@ just a suggested path):
 5. Apply migrations to the production branch once (see
    [Migrations](#migrations)), then deploy: `vercel --prod`.
 
+**`vercel.json` pins the function region to `pdx1`** (Portland) to match
+Neon's database region (`aws-us-west-2`, Oregon) — otherwise Vercel's
+default (`iad1`, Virginia) means every request pays cross-country latency
+to reach Postgres, which matters more here than on a typical app since
+every page is dynamic and hits the database on every request. Hobby-tier
+projects get one custom region; this is it.
+
 Because every page is rendered dynamically (see
 [Architecture](#architecture--key-decisions)), admin edits made after
 deployment show up immediately — there's no build step to re-trigger and no
