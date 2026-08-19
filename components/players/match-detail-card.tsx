@@ -10,13 +10,24 @@ import { FORMAT_INFO } from "@/lib/formats";
 import { getSideNames } from "@/lib/match-helpers";
 import { MatchStatusBadge } from "@/components/shared/match-status-badge";
 import { HoleByHoleScorecard } from "@/components/scorecard/hole-by-hole-scorecard";
+import { ALL_18, BACK_NINE, FRONT_NINE, computeHoleWinners, computeMatchPlayStatus, type HoleRange } from "@/lib/scorecard-logic";
 import { cn } from "@/lib/utils";
+
+// Segment.name is always one of these three (see SEGMENT_TEMPLATES /
+// lib/scorecard.ts's SEGMENT_ROW_NAMES) — maps each row to the slice of the
+// 18-hole arrays its live match-play status should be computed from.
+const SEGMENT_HOLE_RANGES: Record<string, HoleRange> = {
+  "Front 9": FRONT_NINE,
+  "Back 9": BACK_NINE,
+  "Overall 18": ALL_18,
+};
 
 export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails; roundLabel?: string }) {
   const [expanded, setExpanded] = useState(false);
   const totals = calculateMatchTotals(match.segments);
   const isComplete = match.status === "COMPLETE";
   const liveUrl = match.gameBookLeaderboardUrl || match.gameBookEventUrl || match.externalScoringUrl;
+  const holeWinners = computeHoleWinners(match.teamAHoleScores, match.teamBHoleScores);
 
   return (
     <div
@@ -120,6 +131,8 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
                       segment.format === "OVERALL"
                         ? segment.name
                         : `${segment.name}, ${FORMAT_INFO[segment.format as keyof typeof FORMAT_INFO]?.label ?? segment.format}`;
+                    const range = SEGMENT_HOLE_RANGES[segment.name];
+                    const liveStatus = range ? computeMatchPlayStatus(holeWinners.slice(range.start, range.end)) : null;
                     return (
                       <tr key={segment.id}>
                         <td className="py-2.5 text-ink-700/70">{label}</td>
@@ -130,6 +143,25 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
                             </td>
                             <td className="py-2.5 text-right font-semibold text-ink-950">
                               {formatPoints(points.teamB)}
+                            </td>
+                          </>
+                        ) : liveStatus && liveStatus.holesPlayed > 0 ? (
+                          <>
+                            <td
+                              className={cn(
+                                "py-2.5 text-right font-semibold",
+                                liveStatus.leaderSide === "A" ? "text-fairway-800" : "text-ink-700/30",
+                              )}
+                            >
+                              {liveStatus.leaderSide === "A" ? `${liveStatus.margin} UP` : liveStatus.leaderSide === null ? "AS" : "-"}
+                            </td>
+                            <td
+                              className={cn(
+                                "py-2.5 text-right font-semibold",
+                                liveStatus.leaderSide === "B" ? "text-fairway-800" : "text-ink-700/30",
+                              )}
+                            >
+                              {liveStatus.leaderSide === "B" ? `${liveStatus.margin} UP` : liveStatus.leaderSide === null ? "AS" : "-"}
                             </td>
                           </>
                         ) : (
