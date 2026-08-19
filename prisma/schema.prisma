@@ -233,6 +233,15 @@ model Pairing {
   order  Int     @default(0) // display order within the team, e.g. A1, A2...
   locked Boolean @default(false)
 
+  // True while this twosome has been announced during live matchmaking and
+  // is waiting for the opposing captain to pick an opponent for it — at
+  // most one pairing per round is ever true at a time. Cleared the moment
+  // it's matched. See lib/matchmaking-logic.ts for why this needs to be
+  // real, persisted state rather than derived: unlike "whose turn in the
+  // draft," an announcement is a specific item awaiting a response, not
+  // just a count that can be recomputed from the roster.
+  announced Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
