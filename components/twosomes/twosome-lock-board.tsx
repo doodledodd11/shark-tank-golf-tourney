@@ -106,7 +106,7 @@ export function TwosomeLockBoard({
               <option value="">Player 1</option>
               {unpaired.map((p) => (
                 <option key={p.id} value={p.id} disabled={p.id === player2Id}>
-                  {p.name}
+                  {p.name} (Tier {p.tier})
                 </option>
               ))}
             </select>
@@ -118,7 +118,7 @@ export function TwosomeLockBoard({
               <option value="">Player 2</option>
               {unpaired.map((p) => (
                 <option key={p.id} value={p.id} disabled={p.id === player1Id}>
-                  {p.name}
+                  {p.name} (Tier {p.tier})
                 </option>
               ))}
             </select>
@@ -146,7 +146,7 @@ export function TwosomeLockBoard({
                 className="flex items-center justify-between gap-2 rounded-lg border border-fairway-900/10 px-3 py-2"
               >
                 <span className="text-sm font-semibold text-ink-900">
-                  {p.player1.name} + {p.player2.name}
+                  {p.player1.name} (T{p.player1.tier}) + {p.player2.name} (T{p.player2.tier})
                 </span>
                 <button
                   type="button"

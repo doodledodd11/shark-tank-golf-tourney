@@ -3,6 +3,7 @@ import { isAdminSession } from "@/lib/dal";
 import { PageHeader } from "@/components/shared/page-header";
 import { ApprovedCoursesSection } from "@/components/courses/approved-courses-section";
 import { CourseSelectionTool } from "@/components/courses/course-selection-tool";
+import { MatchCourseStatusCard } from "@/components/courses/match-course-status-card";
 import { CourseSelectionDemo } from "@/components/courses/course-selection-demo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MapPinned } from "lucide-react";
@@ -38,9 +39,9 @@ export default async function CoursesPage() {
         <div className="mt-14">
           <h2 className="font-display text-2xl font-bold text-fairway-900">Matches Needing a Course</h2>
           <p className="mt-1 text-sm text-ink-700/60">
-            Each player selects their preferred course from the approved list. Duplicate picks count as extra
-            entries in the random draw. Pick honestly, or don&apos;t be surprised when your favorite course wins.
-            Once everyone&apos;s in, the tournament admin runs the draw to lock in the official course.
+            Each player picks their preferred course through their own personal link, sent by the tournament
+            admin. Duplicate picks count as extra entries in the random draw, so pick honestly. Once
+            everyone&apos;s in, the admin runs the draw to lock in the official course.
           </p>
 
           <div className="mt-6">
@@ -57,17 +58,26 @@ export default async function CoursesPage() {
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {matchesNeedingSelection.map(({ match, roundName }) => (
-                <CourseSelectionTool
-                  key={match.id}
-                  matchId={match.id}
-                  matchLabel={`${roundName} · Match ${match.matchNumber}`}
-                  participants={match.participants.map((p) => ({ playerId: p.playerId, playerName: p.player.name }))}
-                  courses={selectableCourses}
-                  initialSelections={match.courseSelections.map((s) => ({ playerId: s.playerId, courseId: s.courseId }))}
-                  isAdmin={isAdmin}
-                />
-              ))}
+              {matchesNeedingSelection.map(({ match, roundName }) =>
+                isAdmin ? (
+                  <CourseSelectionTool
+                    key={match.id}
+                    matchId={match.id}
+                    matchLabel={`${roundName} · Match ${match.matchNumber}`}
+                    participants={match.participants.map((p) => ({ playerId: p.playerId, playerName: p.player.name }))}
+                    courses={selectableCourses}
+                    initialSelections={match.courseSelections.map((s) => ({ playerId: s.playerId, courseId: s.courseId }))}
+                    isAdmin={isAdmin}
+                  />
+                ) : (
+                  <MatchCourseStatusCard
+                    key={match.id}
+                    matchLabel={`${roundName} · Match ${match.matchNumber}`}
+                    participants={match.participants.map((p) => ({ playerId: p.playerId, playerName: p.player.name }))}
+                    selectedPlayerIds={new Set(match.courseSelections.map((s) => s.playerId))}
+                  />
+                ),
+              )}
             </div>
           )}
         </div>

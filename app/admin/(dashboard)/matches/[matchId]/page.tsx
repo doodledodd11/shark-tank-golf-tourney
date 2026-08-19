@@ -8,6 +8,7 @@ import { getSideNames } from "@/lib/match-helpers";
 import { MatchInfoForm } from "@/components/admin/match-info-form";
 import { SegmentEditor } from "@/components/admin/segment-editor";
 import { SquabbitImportPanel } from "@/components/admin/squabbit-import-panel";
+import { CourseSelectionLinksPanel } from "@/components/admin/course-selection-links-panel";
 
 export const metadata = { title: "Edit Match" };
 
@@ -44,6 +45,21 @@ export default async function AdminMatchPage({ params }: { params: Promise<{ mat
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">Match Details</h2>
         <MatchInfoForm match={match} courses={courses} />
       </section>
+
+      {!match.courseId && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">Course Selection</h2>
+          <CourseSelectionLinksPanel
+            matchId={match.id}
+            participants={match.participants.map((p) => ({
+              playerId: p.playerId,
+              playerName: p.player.name,
+              accessToken: p.accessToken,
+              hasEmail: Boolean(p.player.email),
+            }))}
+          />
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">Scoring</h2>

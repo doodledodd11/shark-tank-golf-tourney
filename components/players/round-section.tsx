@@ -1,7 +1,7 @@
 import { Handshake, Users2 } from "lucide-react";
 import { RoundScoreBanner } from "./round-score-banner";
 import { TeamRoster } from "./team-roster";
-import { RoundMatchesList } from "./round-matches-list";
+import { MatchDetailCard } from "./match-detail-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { calculateRoundTotals } from "@/lib/tournament-logic";
 import type { RoundWithDetails } from "@/lib/data";
@@ -71,7 +71,11 @@ export function RoundSection({ round }: { round: RoundWithDetails }) {
       {round.matches.length > 0 ? (
         <div>
           <h3 className="font-display text-2xl font-bold text-fairway-900">Matches</h3>
-          <RoundMatchesList matches={round.matches} />
+          <div className="mt-4 grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+            {round.matches.map((match) => (
+              <MatchDetailCard key={match.id} match={match} />
+            ))}
+          </div>
         </div>
       ) : (
         <EmptyState icon={Users2} title="No matches yet" body="Matchups will appear here once twosomes are set." />

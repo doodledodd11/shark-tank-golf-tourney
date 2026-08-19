@@ -90,7 +90,7 @@ export function SinglesMatchmakingBoard({
             {data.phase === "RESPOND" && announcedPlayer ? (
               <>
                 <p className="font-display text-xl font-bold text-fairway-900">
-                  {announcerTeam?.name} announced {announcedPlayer.name}
+                  {announcerTeam?.name} announced {announcedPlayer.name} (T{announcedPlayer.tier})
                 </p>
                 <p className="text-sm text-ink-700/60">{onTheClockTeam?.name} is choosing who faces them.</p>
               </>
@@ -118,7 +118,7 @@ export function SinglesMatchmakingBoard({
                 onClick={() => (data.phase === "ANNOUNCE" ? handleAnnounce(p.id) : handleRespond(p.id))}
                 className="rounded-lg border border-fairway-900/10 bg-white px-3 py-2 text-left text-sm font-semibold text-ink-900 shadow-sm transition-colors hover:border-fairway-600 hover:bg-fairway-50 disabled:opacity-50"
               >
-                {p.name}
+                {p.name} (T{p.tier})
               </button>
             ))}
           </div>
@@ -177,9 +177,15 @@ function TeamPlayersColumn({
                     : "border-fairway-900/10 text-ink-900",
               )}
             >
-              <p className="font-semibold text-ink-900">{p.name}</p>
+              <p className="font-semibold text-ink-900">
+                {p.name} (T{p.tier})
+              </p>
               {p.announced && <p className="text-xs text-gold-700">Announced, awaiting a response</p>}
-              {opponent && <p className="text-xs text-ink-700/50">vs {opponent.name}</p>}
+              {opponent && (
+                <p className="text-xs text-ink-700/50">
+                  vs {opponent.name} (T{opponent.tier})
+                </p>
+              )}
             </div>
           );
         })}

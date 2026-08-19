@@ -92,7 +92,8 @@ export function MatchmakingBoard({
             {data.phase === "RESPOND" && announcedPairing ? (
               <>
                 <p className="font-display text-xl font-bold text-fairway-900">
-                  {announcerTeam?.name} announced {announcedPairing.player1Name} + {announcedPairing.player2Name}
+                  {announcerTeam?.name} announced {announcedPairing.player1Name} (T{announcedPairing.player1Tier}) +{" "}
+                  {announcedPairing.player2Name} (T{announcedPairing.player2Tier})
                 </p>
                 <p className="text-sm text-ink-700/60">{onTheClockTeam?.name} is choosing a twosome to face them.</p>
               </>
@@ -124,7 +125,7 @@ export function MatchmakingBoard({
                 onClick={() => (data.phase === "ANNOUNCE" ? handleAnnounce(p.id) : handleRespond(p.id))}
                 className="rounded-lg border border-fairway-900/10 bg-white px-3 py-2 text-left text-sm font-semibold text-ink-900 shadow-sm transition-colors hover:border-fairway-600 hover:bg-fairway-50 disabled:opacity-50"
               >
-                {p.player1Name} + {p.player2Name}
+                {p.player1Name} (T{p.player1Tier}) + {p.player2Name} (T{p.player2Tier})
               </button>
             ))}
           </div>
@@ -184,11 +185,13 @@ function TeamPairingsColumn({
               )}
             >
               <p className="font-semibold text-ink-900">
-                {p.player1Name} + {p.player2Name}
+                {p.player1Name} (T{p.player1Tier}) + {p.player2Name} (T{p.player2Tier})
               </p>
               {p.announced && <p className="text-xs text-gold-700">Announced, awaiting a response</p>}
               {opponent && (
-                <p className="text-xs text-ink-700/50">vs {opponent.player1Name} + {opponent.player2Name}</p>
+                <p className="text-xs text-ink-700/50">
+                  vs {opponent.player1Name} (T{opponent.player1Tier}) + {opponent.player2Name} (T{opponent.player2Tier})
+                </p>
               )}
             </div>
           );

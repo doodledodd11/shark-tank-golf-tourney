@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { CalendarDays, ChevronDown, ExternalLink, MapPin } from "lucide-react";
 import type { MatchWithDetails } from "@/lib/data";
@@ -10,20 +11,8 @@ import { getSideNames } from "@/lib/match-helpers";
 import { MatchStatusBadge } from "@/components/shared/match-status-badge";
 import { cn } from "@/lib/utils";
 
-/** Expand state is owned by the parent (see RoundMatchesList /
- * MatchesExplorer) rather than kept locally, so only one card in a list
- * can be open at a time — opening one closes whichever was open before. */
-export function MatchDetailCard({
-  match,
-  roundLabel,
-  expanded,
-  onToggle,
-}: {
-  match: MatchWithDetails;
-  roundLabel?: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
+export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails; roundLabel?: string }) {
+  const [expanded, setExpanded] = useState(false);
   const totals = calculateMatchTotals(match.segments);
   const isComplete = match.status === "COMPLETE";
   const liveUrl = match.gameBookLeaderboardUrl || match.gameBookEventUrl || match.externalScoringUrl;
@@ -35,7 +24,12 @@ export function MatchDetailCard({
         match.isPlayoff ? "border-gold-400 ring-1 ring-gold-400/30" : "border-fairway-900/10",
       )}
     >
-      <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full p-4 text-left sm:p-5">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="w-full p-4 text-left sm:p-5"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">
             {roundLabel && `${roundLabel} · `}

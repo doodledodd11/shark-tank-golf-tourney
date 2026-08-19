@@ -328,6 +328,14 @@ model MatchParticipant {
 
   side String // union: "A" | "B"
 
+  // Per-player, per-match capability token — same idea as
+  // Team.captainAccessToken, one level down. Lets a specific player make
+  // their own course selection via a personal link instead of the pick
+  // being open to anyone who finds the match's public page. Issued lazily
+  // (see ensurePlayerAccessTokensLogic) rather than at row creation, since
+  // most matches never need it emailed out at all.
+  accessToken String? @unique
+
   @@unique([matchId, playerId])
   @@index([playerId])
 }

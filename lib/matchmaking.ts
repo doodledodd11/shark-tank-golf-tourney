@@ -93,7 +93,7 @@ export interface TwosomeLockBoardData {
   myTeamName: string;
   roster: { id: string; name: string; tier: number }[];
   pairedPlayerIds: string[];
-  pairings: { id: string; player1: { id: string; name: string }; player2: { id: string; name: string } }[];
+  pairings: { id: string; player1: { id: string; name: string; tier: number }; player2: { id: string; name: string; tier: number } }[];
   requiredPairings: number;
   isComplete: boolean;
   otherTeamLockedCount: number;
@@ -135,8 +135,8 @@ export async function getTwosomeLockBoardData(roundId: string, captainToken: str
     pairedPlayerIds: [...pairedPlayerIds],
     pairings: myPairings.map((p) => ({
       id: p.id,
-      player1: { id: p.player1.id, name: p.player1.name },
-      player2: { id: p.player2.id, name: p.player2.name },
+      player1: { id: p.player1.id, name: p.player1.name, tier: p.player1.tier },
+      player2: { id: p.player2.id, name: p.player2.name, tier: p.player2.tier },
     })),
     requiredPairings: myState.requiredPairings,
     isComplete: myState.isComplete,
@@ -228,7 +228,9 @@ export interface MatchmakingPairingSummary {
   id: string;
   teamId: string;
   player1Name: string;
+  player1Tier: number;
   player2Name: string;
+  player2Tier: number;
   announced: boolean;
   opponentPairingId: string | null;
 }
@@ -281,7 +283,9 @@ export async function getMatchmakingBoardData(roundId: string, captainToken?: st
       id: p.id,
       teamId: p.teamId,
       player1Name: p.player1.name,
+      player1Tier: p.player1.tier,
       player2Name: p.player2.name,
+      player2Tier: p.player2.tier,
       announced: p.announced,
       opponentPairingId: opponentByPairing.get(p.id) ?? null,
     })),
@@ -479,6 +483,7 @@ export interface SinglesMatchmakingPlayerSummary {
   id: string;
   teamId: string;
   name: string;
+  tier: number;
   announced: boolean;
   opponentPlayerId: string | null;
 }
@@ -527,6 +532,7 @@ export async function getSinglesMatchmakingBoardData(roundId: string, captainTok
         id: m.playerId,
         teamId: t.id,
         name: m.player.name,
+        tier: m.player.tier,
         announced: m.announced,
         opponentPlayerId: opponentByPlayer.get(m.playerId) ?? null,
       })),

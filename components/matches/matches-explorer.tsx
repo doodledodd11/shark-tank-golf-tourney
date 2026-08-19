@@ -30,9 +30,6 @@ export function MatchesExplorer({
   const [team, setTeam] = useState(ALL);
   const [player, setPlayer] = useState(ALL);
   const [status, setStatus] = useState(ALL);
-  // Shared across every group (In Progress / Upcoming / Completed) so
-  // opening one match on the page closes whichever other one was open.
-  const [openMatchId, setOpenMatchId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return matches.filter((m) => {
@@ -72,9 +69,9 @@ export function MatchesExplorer({
         </div>
       ) : (
         <div className="mt-10 space-y-10">
-          <MatchGroup title="In Progress" matches={inProgress} openMatchId={openMatchId} onToggle={setOpenMatchId} />
-          <MatchGroup title="Upcoming" matches={upcoming} openMatchId={openMatchId} onToggle={setOpenMatchId} />
-          <MatchGroup title="Completed" matches={completed} openMatchId={openMatchId} onToggle={setOpenMatchId} />
+          <MatchGroup title="In Progress" matches={inProgress} />
+          <MatchGroup title="Upcoming" matches={upcoming} />
+          <MatchGroup title="Completed" matches={completed} />
         </div>
       )}
 
@@ -87,32 +84,19 @@ export function MatchesExplorer({
   );
 }
 
-function MatchGroup({
-  title,
-  matches,
-  openMatchId,
-  onToggle,
-}: {
-  title: string;
-  matches: FlatMatch[];
-  openMatchId: string | null;
-  onToggle: (id: string | null) => void;
-}) {
+function MatchGroup({ title, matches }: { title: string; matches: FlatMatch[] }) {
   if (matches.length === 0) return null;
   return (
     <div>
       <h2 className="font-display text-2xl font-bold text-fairway-900">
         {title} <span className="text-base font-normal text-ink-700/40">({matches.length})</span>
       </h2>
-      <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* items-start: without it, a grid row stretches every card to match
+          its tallest sibling, so an expanded card leaves its collapsed
+          neighbors visually tall and empty (same bug the course cards had). */}
+      <div className="mt-4 grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {matches.map((match) => (
-          <MatchDetailCard
-            key={match.id}
-            match={match}
-            roundLabel={match.roundName}
-            expanded={openMatchId === match.id}
-            onToggle={() => onToggle(openMatchId === match.id ? null : match.id)}
-          />
+          <MatchDetailCard key={match.id} match={match} roundLabel={match.roundName} />
         ))}
       </div>
     </div>
