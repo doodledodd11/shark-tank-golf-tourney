@@ -9,6 +9,7 @@ import { formatPoints, formatDate } from "@/lib/format";
 import { FORMAT_INFO } from "@/lib/formats";
 import { getSideNames } from "@/lib/match-helpers";
 import { MatchStatusBadge } from "@/components/shared/match-status-badge";
+import { HoleByHoleScorecard } from "@/components/scorecard/hole-by-hole-scorecard";
 import { cn } from "@/lib/utils";
 
 export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails; roundLabel?: string }) {
@@ -89,6 +90,10 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
                 Follow Match Live
               </Link>
             </div>
+          )}
+
+          {(match.teamAHoleScores.some((h) => h > 0) || match.teamBHoleScores.some((h) => h > 0)) && (
+            <HoleByHoleScorecard match={match} />
           )}
 
           {match.segments.length > 0 && (

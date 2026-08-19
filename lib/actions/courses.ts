@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAdminSession } from "@/lib/dal";
+import { parseCourseHolesFromCsv } from "@/lib/course-holes";
 
 export interface FormState {
   error?: string;
@@ -83,6 +84,23 @@ export async function updateCourse(_prevState: FormState, formData: FormData): P
     },
   });
 
+  revalidateCoursePages();
+  return { success: true };
+}
+
+/** One-time bootstrap for a course's hole-by-hole par/stroke-index — paste
+ * any Squabbit round export played at that course (or any export sharing
+ * the same "Hole 1 ... Par ... S.I." shape) and this pulls out just the
+ * reference numbers, not anything about who played or what they shot. */
+export async function importCourseHoles(courseId: string, csvText: string): Promise<FormState> {
+  await requireAdminSession();
+  const parsed = parseCourseHolesFromCsv(csvText);
+  if (!parsed) return { error: "Couldn't find a complete 18-hole Par/S.I. scorecard in that text." };
+
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { parByHole: parsed.parByHole, strokeIndexByHole: parsed.strokeIndexByHole },
+  });
   revalidateCoursePages();
   return { success: true };
 }

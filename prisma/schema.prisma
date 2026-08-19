@@ -93,9 +93,9 @@ model Player {
   hometown      String?
   avatarUrl     String?
 
-  // Optional contact/logistics fields, mainly collected so a round's roster
-  // can be exported straight into a third-party scoring app's player-import
-  // spreadsheet (see lib/squabbit.ts) without hand-typing everyone in twice.
+  // Optional contact/logistics fields. email is used for the site's own
+  // per-match/per-side scorecard and course-selection links; the rest are
+  // informational.
   email        String?
   phone        String?
   gender       String? // free text (e.g. "Male" / "Female") — not validated, matches whatever the export target expects
@@ -301,6 +301,23 @@ model Match {
   gameBookLeaderboardUrl String?
   externalScoringUrl     String?
 
+  // The site's own live scorecard: 18 entries each (hole 1 first), 0 means
+  // "not entered yet" — a real score is always >= 1, so it's a safe empty
+  // sentinel without needing nullable array elements. Either teammate on a
+  // side can fill these in through that side's own link (see
+  // teamASideAccessToken); MatchSegment.teamAScore/teamBScore/winner are
+  // derived from these whenever they change, not entered directly anymore.
+  teamAHoleScores Int[] @default([])
+  teamBHoleScores Int[] @default([])
+
+  // Per-side capability link for scorecard entry — one link per side (not
+  // per player) since both teammates share one score either way. Same
+  // pattern as Team.captainAccessToken and MatchParticipant.accessToken,
+  // one level up: this token identifies "this side of this match" rather
+  // than a team-for-a-round or a player-for-a-match.
+  teamASideAccessToken String? @unique
+  teamBSideAccessToken String? @unique
+
   notes String?
 
   createdAt DateTime @default(now())
@@ -392,6 +409,14 @@ model Course {
 
   approved Boolean @default(true)
   active   Boolean @default(true)
+
+  // Hole-by-hole reference data for the live scorecard — 18 entries each,
+  // hole 1 first. Empty until an admin imports it (see the course-holes
+  // import tool), at which point the scorecard entry page can show par per
+  // hole; the site works fine without it, this is purely for a nicer
+  // player-facing form, never used to compute anything itself.
+  parByHole         Int[] @default([])
+  strokeIndexByHole Int[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

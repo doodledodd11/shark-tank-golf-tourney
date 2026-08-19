@@ -17,7 +17,6 @@ import { SetFirstAnnouncerField } from "@/components/admin/set-first-announcer-f
 import { RoundMatchList } from "@/components/admin/round-match-list";
 import { RoundCompletePanel } from "@/components/admin/round-complete-panel";
 import { RoundDeadlineField } from "@/components/admin/round-deadline-field";
-import { SquabbitExportButton } from "@/components/admin/squabbit-export-button";
 import { EnableCaptainLinksButton } from "@/components/admin/enable-captain-links-button";
 
 export const metadata = { title: "Round Management" };
@@ -119,7 +118,6 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {round.teams.length === 2 && <SquabbitExportButton roundId={round.id} roundName={round.name} />}
           <RoundDeadlineField roundId={round.id} deadline={round.deadline} />
         </div>
       </div>

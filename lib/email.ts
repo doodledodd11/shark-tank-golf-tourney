@@ -1,9 +1,9 @@
-// Thin wrapper around Resend for the one transactional email this site
-// sends: a player's personal course-selection link. Kept isolated here so
-// the rest of the app never touches the Resend SDK directly, and so a
-// missing/invalid API key fails as a clear, catchable error instead of a
-// crash — the feature (per-player links) still works without email
-// configured, an admin just has to copy/share links manually instead.
+// Thin wrapper around Resend for the transactional emails this site sends
+// (a player's course-selection link, a side's scorecard-entry link). Kept
+// isolated here so the rest of the app never touches the Resend SDK
+// directly, and so a missing/invalid API key fails as a clear, catchable
+// error instead of a crash — every link-based feature still works without
+// email configured, an admin just has to copy/share links manually instead.
 
 import { Resend } from "resend";
 
@@ -26,32 +26,54 @@ export function getSiteUrl(): string {
   return "http://localhost:3000";
 }
 
+async function sendEmail(input: { to: string | string[]; subject: string; html: string }): Promise<{ error?: string }> {
+  const resend = getResendClient();
+  if (!resend) {
+    return { error: "Email isn't configured yet. Set RESEND_API_KEY to enable sending." };
+  }
+  try {
+    const result = await resend.emails.send({ from: FROM_EMAIL, to: input.to, subject: input.subject, html: input.html });
+    if (result.error) return { error: result.error.message };
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't send that email." };
+  }
+}
+
 export async function sendCourseSelectionEmail(input: {
   to: string;
   playerName: string;
   matchLabel: string;
   link: string;
 }): Promise<{ error?: string }> {
-  const resend = getResendClient();
-  if (!resend) {
-    return { error: "Email isn't configured yet. Set RESEND_API_KEY to enable sending." };
-  }
+  return sendEmail({
+    to: input.to,
+    subject: `Pick your course, ${input.matchLabel}`,
+    html: `
+      <p>Hi ${input.playerName},</p>
+      <p>It's time to pick your preferred course for <strong>${input.matchLabel}</strong>.</p>
+      <p><a href="${input.link}">Make your selection</a></p>
+      <p style="color:#666;font-size:13px;">This link is yours alone, no account needed.</p>
+    `,
+  });
+}
 
-  try {
-    const result = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: input.to,
-      subject: `Pick your course, ${input.matchLabel}`,
-      html: `
-        <p>Hi ${input.playerName},</p>
-        <p>It's time to pick your preferred course for <strong>${input.matchLabel}</strong>.</p>
-        <p><a href="${input.link}">Make your selection</a></p>
-        <p style="color:#666;font-size:13px;">This link is yours alone, no account needed.</p>
-      `,
-    });
-    if (result.error) return { error: result.error.message };
-    return {};
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Couldn't send that email." };
-  }
+/** One email, shared by both teammates on a side of a match — either of
+ * them can use the same link to enter or update their scorecard. */
+export async function sendScorecardLinkEmail(input: {
+  to: string | string[];
+  names: string;
+  matchLabel: string;
+  link: string;
+}): Promise<{ error?: string }> {
+  return sendEmail({
+    to: input.to,
+    subject: `Enter your scorecard, ${input.matchLabel}`,
+    html: `
+      <p>Hi ${input.names},</p>
+      <p>Use this link during (or right after) your round to enter your team's scorecard for <strong>${input.matchLabel}</strong>.</p>
+      <p><a href="${input.link}">Enter your scorecard</a></p>
+      <p style="color:#666;font-size:13px;">Either of you can use this link — it's shared for your side of the match, no account needed.</p>
+    `,
+  });
 }
