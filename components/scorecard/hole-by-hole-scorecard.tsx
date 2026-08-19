@@ -10,6 +10,18 @@ function sumRange(holes: number[], start: number, end: number): number | null {
   return slice.reduce((a, b) => a + b, 0);
 }
 
+function StatusCell({ isLeader, isSquare, margin }: { isLeader: boolean; isSquare: boolean; margin: number }) {
+  if (isLeader) {
+    return (
+      <span className="inline-flex items-center justify-center gap-0.5 font-bold text-fairway-800">
+        {margin}
+        <ArrowUp className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+  return <span className="text-ink-700/30">{isSquare ? "AS" : "-"}</span>;
+}
+
 function NineRows({
   holeNumbers,
   par,
@@ -32,6 +44,8 @@ function NineRows({
   const label = holeNumbers[0] === 1 ? "Out" : "In";
   const aTotal = sumRange(teamAHoles, start, end);
   const bTotal = sumRange(teamBHoles, start, end);
+  const nineStatus = computeMatchPlayStatus(holeWinners.slice(start, end));
+  const isSquare = nineStatus.holesPlayed > 0 && nineStatus.leaderSide === null;
 
   return (
     <>
@@ -44,6 +58,7 @@ function NineRows({
             </td>
           ))}
           <td className="p-1">{par.slice(start, end).reduce((a, b) => a + b, 0)}</td>
+          <td className="p-1" />
         </tr>
       )}
       <tr>
@@ -61,6 +76,9 @@ function NineRows({
           </td>
         ))}
         <td className="p-1 font-semibold text-ink-900">{aTotal ?? "-"}</td>
+        <td className="p-1">
+          <StatusCell isLeader={nineStatus.leaderSide === "A"} isSquare={isSquare} margin={nineStatus.margin} />
+        </td>
       </tr>
       <tr>
         <td className="p-1 text-left font-medium text-ink-900">{teamBName}</td>
@@ -77,9 +95,12 @@ function NineRows({
           </td>
         ))}
         <td className="p-1 font-semibold text-ink-900">{bTotal ?? "-"}</td>
+        <td className="p-1">
+          <StatusCell isLeader={nineStatus.leaderSide === "B"} isSquare={isSquare} margin={nineStatus.margin} />
+        </td>
       </tr>
       <tr aria-hidden className="h-1">
-        <td colSpan={holeNumbers.length + 2} />
+        <td colSpan={holeNumbers.length + 3} />
       </tr>
       {label === "Out" && <tr aria-hidden className="border-b border-fairway-900/5" />}
     </>
@@ -91,28 +112,12 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
   const teamAName = getSideNames(match, "A");
   const teamBName = getSideNames(match, "B");
   const holeWinners = computeHoleWinners(match.teamAHoleScores, match.teamBHoleScores);
-  const matchPlayStatus = computeMatchPlayStatus(holeWinners);
 
   return (
     <div className="mt-5 border-t border-fairway-900/5 pt-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">Scorecard</p>
-        {matchPlayStatus.holesPlayed > 0 && (
-          <p className="flex items-center gap-1 text-sm font-bold text-fairway-800">
-            {matchPlayStatus.leaderSide === null ? (
-              `All square thru ${matchPlayStatus.holesPlayed}`
-            ) : (
-              <>
-                {matchPlayStatus.leaderSide === "A" ? teamAName : teamBName} {matchPlayStatus.margin}
-                <ArrowUp className="h-3.5 w-3.5" />
-                thru {matchPlayStatus.holesPlayed}
-              </>
-            )}
-          </p>
-        )}
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">Scorecard</p>
       <div className="mt-2 overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse text-center text-sm">
+        <table className="w-full min-w-[520px] border-collapse text-center text-sm">
           <thead>
             <tr className="text-xs text-ink-700/50">
               <th className="p-1 text-left font-medium">Hole</th>
@@ -122,6 +127,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">Out</th>
+              <th className="p-1 font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -144,6 +150,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">In</th>
+              <th className="p-1 font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
