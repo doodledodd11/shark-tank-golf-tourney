@@ -13,7 +13,7 @@ function sumRange(holes: number[], start: number, end: number): number | null {
 function StatusCell({ isLeader, isSquare, margin }: { isLeader: boolean; isSquare: boolean; margin: number }) {
   if (isLeader) {
     return (
-      <span className="inline-flex items-center justify-center gap-0.5 font-bold text-fairway-800">
+      <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap font-bold text-fairway-800">
         {margin}
         <ArrowUp className="h-3.5 w-3.5" />
       </span>
@@ -127,7 +127,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">Out</th>
-              <th className="p-1 font-semibold">Status</th>
+              <th className="p-1 font-semibold">MP</th>
             </tr>
           </thead>
           <tbody>
@@ -150,7 +150,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">In</th>
-              <th className="p-1 font-semibold">Status</th>
+              <th className="p-1 font-semibold">MP</th>
             </tr>
           </thead>
           <tbody>
