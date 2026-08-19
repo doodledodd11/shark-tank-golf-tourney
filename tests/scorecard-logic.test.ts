@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeMatchSegmentsFromHoles, computeSegmentWinner, deriveMatchStatus } from "@/lib/scorecard-logic";
+import {
+  computeHoleWinners,
+  computeMatchPlayStatus,
+  computeMatchSegmentsFromHoles,
+  computeSegmentWinner,
+  deriveMatchStatus,
+} from "@/lib/scorecard-logic";
 
 const EMPTY = Array(18).fill(0);
 const FRONT_ONLY = [4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 36 on front, back untouched
@@ -70,5 +76,37 @@ describe("deriveMatchStatus", () => {
   it("moves to COMPLETE once the Overall segment is fully decided", () => {
     const segments = computeMatchSegmentsFromHoles(FULL_LOW, FULL_HIGH);
     expect(deriveMatchStatus(segments, "IN_PROGRESS")).toBe("COMPLETE");
+  });
+});
+
+describe("computeHoleWinners", () => {
+  it("gives each hole to whoever scored lower, ties when equal, null until both sides post that hole", () => {
+    const a = [4, 5, 4, 0];
+    const b = [5, 4, 4, 6];
+    expect(computeHoleWinners(a, b)).toEqual(["A", "B", "TIE", null]);
+  });
+});
+
+describe("computeMatchPlayStatus", () => {
+  it("reports no holes played when nothing's decided yet", () => {
+    expect(computeMatchPlayStatus([null, null, null])).toEqual({ leaderSide: null, margin: 0, holesPlayed: 0 });
+  });
+
+  it("counts wins minus losses toward whoever's ahead", () => {
+    // A wins 3, B wins 1, 1 tie -> A 2 up thru 5
+    const status = computeMatchPlayStatus(["A", "A", "A", "B", "TIE"]);
+    expect(status).toEqual({ leaderSide: "A", margin: 2, holesPlayed: 5 });
+  });
+
+  it("reports all square when wins are even", () => {
+    const status = computeMatchPlayStatus(["A", "B", "TIE"]);
+    expect(status).toEqual({ leaderSide: null, margin: 0, holesPlayed: 3 });
+  });
+
+  it("matches the front-9 example: A wins 5, B wins 2, 2 ties -> 3 up thru 9", () => {
+    const teamA = [5, 4, 2, 5, 5, 4, 3, 3, 4];
+    const teamB = [6, 4, 3, 4, 6, 3, 3, 4, 5];
+    const status = computeMatchPlayStatus(computeHoleWinners(teamA, teamB));
+    expect(status).toEqual({ leaderSide: "A", margin: 3, holesPlayed: 9 });
   });
 });

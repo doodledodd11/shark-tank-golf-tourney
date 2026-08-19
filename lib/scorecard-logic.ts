@@ -109,3 +109,39 @@ export function deriveMatchStatus(segments: ComputedMatchSegments, currentStatus
   if (segments.front9.status !== "PENDING" || segments.back9.status !== "PENDING") return "IN_PROGRESS";
   return currentStatus;
 }
+
+/** Per-hole match-play winner — lower score wins the hole, independent of
+ * the stroke-total segment scoring above. `null` until both sides have
+ * entered that hole. */
+export type HoleWinner = "A" | "B" | "TIE" | null;
+
+export function computeHoleWinners(teamAHoles: number[], teamBHoles: number[]): HoleWinner[] {
+  return teamAHoles.map((a, i) => {
+    const b = teamBHoles[i] ?? 0;
+    if (a <= 0 || b <= 0) return null;
+    if (a < b) return "A";
+    if (b < a) return "B";
+    return "TIE";
+  });
+}
+
+export interface MatchPlayStatus {
+  leaderSide: "A" | "B" | null; // null once all decided holes are square
+  margin: number; // holes up, 0 if square
+  holesPlayed: number; // holes both sides have entered, wins + ties
+}
+
+/** The classic match-play "3 UP thru 9" reading, live off however many
+ * holes have actually been entered by both sides so far — not tied to
+ * front 9 / back 9 / overall being complete. */
+export function computeMatchPlayStatus(holeWinners: HoleWinner[]): MatchPlayStatus {
+  const decided = holeWinners.filter((w): w is Exclude<HoleWinner, null> => w !== null);
+  const aWins = decided.filter((w) => w === "A").length;
+  const bWins = decided.filter((w) => w === "B").length;
+  const margin = aWins - bWins;
+  return {
+    leaderSide: margin === 0 ? null : margin > 0 ? "A" : "B",
+    margin: Math.abs(margin),
+    holesPlayed: decided.length,
+  };
+}
