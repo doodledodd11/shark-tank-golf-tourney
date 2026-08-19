@@ -1,3 +1,4 @@
+import { ArrowUp } from "lucide-react";
 import type { MatchWithDetails } from "@/lib/data";
 import { getSideNames } from "@/lib/match-helpers";
 import { computeHoleWinners, computeMatchPlayStatus, type HoleWinner } from "@/lib/scorecard-logic";
@@ -97,10 +98,16 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-700/40">Scorecard</p>
         {matchPlayStatus.holesPlayed > 0 && (
-          <p className="text-sm font-bold text-fairway-800">
-            {matchPlayStatus.leaderSide === null
-              ? `All square thru ${matchPlayStatus.holesPlayed}`
-              : `${matchPlayStatus.leaderSide === "A" ? teamAName : teamBName} ${matchPlayStatus.margin} UP thru ${matchPlayStatus.holesPlayed}`}
+          <p className="flex items-center gap-1 text-sm font-bold text-fairway-800">
+            {matchPlayStatus.leaderSide === null ? (
+              `All square thru ${matchPlayStatus.holesPlayed}`
+            ) : (
+              <>
+                {matchPlayStatus.leaderSide === "A" ? teamAName : teamBName} {matchPlayStatus.margin}
+                <ArrowUp className="h-3.5 w-3.5" />
+                thru {matchPlayStatus.holesPlayed}
+              </>
+            )}
           </p>
         )}
       </div>

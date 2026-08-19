@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ChevronDown, ExternalLink, MapPin } from "lucide-react";
+import { ArrowUp, CalendarDays, ChevronDown, ExternalLink, MapPin } from "lucide-react";
 import type { MatchWithDetails } from "@/lib/data";
 import { calculateMatchTotals, computeSegmentPoints } from "@/lib/tournament-logic";
 import { formatPoints, formatDate } from "@/lib/format";
@@ -153,7 +153,16 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
                                 liveStatus.leaderSide === "A" ? "text-fairway-800" : "text-ink-700/30",
                               )}
                             >
-                              {liveStatus.leaderSide === "A" ? `${liveStatus.margin} UP` : liveStatus.leaderSide === null ? "AS" : "-"}
+                              {liveStatus.leaderSide === "A" ? (
+                                <span className="inline-flex items-center justify-end gap-0.5">
+                                  {liveStatus.margin}
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </span>
+                              ) : liveStatus.leaderSide === null ? (
+                                "AS"
+                              ) : (
+                                "-"
+                              )}
                             </td>
                             <td
                               className={cn(
@@ -161,7 +170,16 @@ export function MatchDetailCard({ match, roundLabel }: { match: MatchWithDetails
                                 liveStatus.leaderSide === "B" ? "text-fairway-800" : "text-ink-700/30",
                               )}
                             >
-                              {liveStatus.leaderSide === "B" ? `${liveStatus.margin} UP` : liveStatus.leaderSide === null ? "AS" : "-"}
+                              {liveStatus.leaderSide === "B" ? (
+                                <span className="inline-flex items-center justify-end gap-0.5">
+                                  {liveStatus.margin}
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </span>
+                              ) : liveStatus.leaderSide === null ? (
+                                "AS"
+                              ) : (
+                                "-"
+                              )}
                             </td>
                           </>
                         ) : (
