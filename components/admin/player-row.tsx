@@ -2,12 +2,13 @@
 
 import { useActionState, useState, useTransition } from "react";
 import type { Player } from "@prisma/client";
-import { ArrowLeftRight, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Trash2 } from "lucide-react";
 import { updatePlayer, deletePlayer, type FormState } from "@/lib/actions/players";
 import { movePlayerToOtherTeam } from "@/lib/actions/rounds";
 import type { CurrentAssignment } from "@/lib/player-status";
 import { PLAYER_STATUSES } from "@/lib/constants";
 import { SubmitButton, inputClass } from "@/components/admin/form-controls";
+import { cn } from "@/lib/utils";
 
 const initialState: FormState = {};
 
@@ -26,6 +27,7 @@ export function PlayerRow({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [moving, startMoveTransition] = useTransition();
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const otherTeam = assignment?.round.teams.find((t) => t.id !== assignment.team.id) ?? null;
 
@@ -44,11 +46,9 @@ export function PlayerRow({
   }
 
   return (
-    <form
-      action={formAction}
-      className="grid grid-cols-[repeat(14,minmax(0,1fr))] items-center gap-2 border-b border-stone-100 px-3 py-2.5 text-sm last:border-0"
-    >
-      <input type="hidden" name="id" value={player.id} />
+    <form action={formAction} className="border-b border-stone-100 px-3 py-2.5 text-sm last:border-0">
+      <div className="grid grid-cols-[repeat(14,minmax(0,1fr))] items-center gap-2">
+        <input type="hidden" name="id" value={player.id} />
 
       <input name="name" defaultValue={player.name} className={`${inputClass} col-span-3 py-1.5`} />
 
@@ -120,6 +120,15 @@ export function PlayerRow({
       />
 
       <div className="col-span-2 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Hide more details" : "Show more details"}
+          className="rounded-lg p-1.5 text-stone-400 hover:bg-fairway-50 hover:text-fairway-700"
+        >
+          <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} />
+        </button>
         <SubmitButton pendingText="…" className="px-3 py-1.5 text-xs">
           Save
         </SubmitButton>
@@ -143,10 +152,35 @@ export function PlayerRow({
               <Trash2 className="h-4 w-4" />
             </button>
           ))}
+        </div>
+
+        {state.error && <p className="col-span-[14] text-xs font-medium text-red-600">{state.error}</p>}
+        {moveError && <p className="col-span-[14] text-xs font-medium text-red-600">{moveError}</p>}
       </div>
 
-      {state.error && <p className="col-span-[14] text-xs font-medium text-red-600">{state.error}</p>}
-      {moveError && <p className="col-span-[14] text-xs font-medium text-red-600">{moveError}</p>}
+      {expanded && (
+        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-stone-100 pt-2 sm:grid-cols-3 lg:grid-cols-6">
+          <input name="email" type="email" defaultValue={player.email ?? ""} placeholder="Email" className={`${inputClass} py-1.5`} />
+          <input name="phone" type="tel" defaultValue={player.phone ?? ""} placeholder="Phone" className={`${inputClass} py-1.5`} />
+          <select name="gender" defaultValue={player.gender ?? ""} className={`${inputClass} py-1.5`}>
+            <option value="">Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+          <input name="whsId" defaultValue={player.whsId ?? ""} placeholder="WHS / GHIN ID" className={`${inputClass} py-1.5`} />
+          <input
+            name="preferredTee"
+            defaultValue={player.preferredTee ?? ""}
+            placeholder="Tee (e.g. Black)"
+            className={`${inputClass} py-1.5`}
+          />
+          <select name="transport" defaultValue={player.transport ?? ""} className={`${inputClass} py-1.5`}>
+            <option value="">Transport</option>
+            <option value="Walking">Walking</option>
+            <option value="Cart">Cart</option>
+          </select>
+        </div>
+      )}
     </form>
   );
 }

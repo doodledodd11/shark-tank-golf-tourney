@@ -48,6 +48,12 @@ export async function createPlayer(_prevState: FormState, formData: FormData): P
       tier: parsed.data.tier,
       hometown: optionalText(formData.get("hometown")),
       handicapIndex: optionalFloat(formData.get("handicapIndex")),
+      email: optionalText(formData.get("email")),
+      phone: optionalText(formData.get("phone")),
+      gender: optionalText(formData.get("gender")),
+      whsId: optionalText(formData.get("whsId")),
+      preferredTee: optionalText(formData.get("preferredTee")),
+      transport: optionalText(formData.get("transport")),
     },
   });
 
@@ -81,6 +87,12 @@ export async function updatePlayer(_prevState: FormState, formData: FormData): P
       eliminatedRound: eliminatedRound != null ? Math.trunc(eliminatedRound) : null,
       hometown: optionalText(formData.get("hometown")),
       handicapIndex: optionalFloat(formData.get("handicapIndex")),
+      email: optionalText(formData.get("email")),
+      phone: optionalText(formData.get("phone")),
+      gender: optionalText(formData.get("gender")),
+      whsId: optionalText(formData.get("whsId")),
+      preferredTee: optionalText(formData.get("preferredTee")),
+      transport: optionalText(formData.get("transport")),
     },
   });
 
@@ -182,6 +194,8 @@ export async function joinTournament(_prevState: FormState, formData: FormData):
       tier: parsed.data.tier,
       hometown: optionalText(formData.get("hometown")),
       handicapIndex: optionalFloat(formData.get("handicapIndex")),
+      email: optionalText(formData.get("email")),
+      phone: optionalText(formData.get("phone")),
       avatarUrl: photo.url,
     },
   });

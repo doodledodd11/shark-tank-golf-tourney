@@ -10,6 +10,7 @@ import { RoundMatchCreator } from "@/components/admin/round-match-creator";
 import { RoundMatchList } from "@/components/admin/round-match-list";
 import { RoundCompletePanel } from "@/components/admin/round-complete-panel";
 import { RoundDeadlineField } from "@/components/admin/round-deadline-field";
+import { SquabbitExportButton } from "@/components/admin/squabbit-export-button";
 
 export const metadata = { title: "Round Management" };
 
@@ -43,7 +44,10 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
             {round.playersStart} players → {round.playersAdvance} advance · Status: {round.status}
           </p>
         </div>
-        <RoundDeadlineField roundId={round.id} deadline={round.deadline} />
+        <div className="flex flex-wrap items-center gap-2">
+          {round.teams.length === 2 && <SquabbitExportButton roundId={round.id} roundName={round.name} />}
+          <RoundDeadlineField roundId={round.id} deadline={round.deadline} />
+        </div>
       </div>
 
       <section>

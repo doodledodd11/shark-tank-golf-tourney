@@ -117,6 +117,12 @@ export function JoinTournamentForm() {
         <Field label="Handicap Index" htmlFor="join-handicap" hint="Optional, informational only">
           <input id="join-handicap" name="handicapIndex" type="number" step="0.1" className={inputClass} />
         </Field>
+        <Field label="Email" htmlFor="join-email" hint="Optional">
+          <input id="join-email" name="email" type="email" className={inputClass} />
+        </Field>
+        <Field label="Phone" htmlFor="join-phone" hint="Optional">
+          <input id="join-phone" name="phone" type="tel" className={inputClass} />
+        </Field>
       </div>
       <div className="mt-5 flex items-center gap-4">
         <SubmitButton pendingText="Joining…">

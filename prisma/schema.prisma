@@ -93,6 +93,16 @@ model Player {
   hometown      String?
   avatarUrl     String?
 
+  // Optional contact/logistics fields, mainly collected so a round's roster
+  // can be exported straight into a third-party scoring app's player-import
+  // spreadsheet (see lib/squabbit.ts) without hand-typing everyone in twice.
+  email        String?
+  phone        String?
+  gender       String? // free text (e.g. "Male" / "Female") — not validated, matches whatever the export target expects
+  whsId        String? // World Handicap System / GHIN number, for apps that do their own handicap lookup
+  preferredTee String? // e.g. "Black", "Blue" — whatever tee name the course/app uses
+  transport    String? // e.g. "Walking" / "Cart"
+
   // union: ACTIVE | ELIMINATED | CHAMPION
   status          String @default("ACTIVE")
   eliminatedRound Int? // round number the player was eliminated in

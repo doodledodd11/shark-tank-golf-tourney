@@ -7,6 +7,7 @@ import { formatPoints } from "@/lib/format";
 import { getSideNames } from "@/lib/match-helpers";
 import { MatchInfoForm } from "@/components/admin/match-info-form";
 import { SegmentEditor } from "@/components/admin/segment-editor";
+import { SquabbitImportPanel } from "@/components/admin/squabbit-import-panel";
 
 export const metadata = { title: "Edit Match" };
 
@@ -47,6 +48,9 @@ export default async function AdminMatchPage({ params }: { params: Promise<{ mat
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700/50">Scoring</h2>
         <SegmentEditor matchId={match.id} segments={match.segments} />
+        <div className="mt-4">
+          <SquabbitImportPanel matchId={match.id} />
+        </div>
       </section>
     </div>
   );
