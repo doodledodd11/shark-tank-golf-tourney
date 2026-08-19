@@ -4,6 +4,11 @@ import { getSideNames } from "@/lib/match-helpers";
 import { computeHoleWinners, computeMatchPlayStatus, type HoleWinner } from "@/lib/scorecard-logic";
 import { cn } from "@/lib/utils";
 
+// Pinned to the right edge of the horizontally-scrolling table so the
+// match-play column stays visible without scrolling through nine holes
+// first — it's the one column worth seeing at a glance.
+const STICKY_COL = "sticky right-0 z-10 border-l border-fairway-900/10 bg-white";
+
 function sumRange(holes: number[], start: number, end: number): number | null {
   const slice = holes.slice(start, end);
   if (slice.length === 0 || slice.some((h) => h <= 0)) return null;
@@ -58,7 +63,7 @@ function NineRows({
             </td>
           ))}
           <td className="p-1">{par.slice(start, end).reduce((a, b) => a + b, 0)}</td>
-          <td className="p-1" />
+          <td className={cn("p-1", STICKY_COL)} />
         </tr>
       )}
       <tr>
@@ -76,7 +81,7 @@ function NineRows({
           </td>
         ))}
         <td className="p-1 font-semibold text-ink-900">{aTotal ?? "-"}</td>
-        <td className="p-1">
+        <td className={cn("p-1", STICKY_COL)}>
           <StatusCell isLeader={nineStatus.leaderSide === "A"} isSquare={isSquare} margin={nineStatus.margin} />
         </td>
       </tr>
@@ -95,7 +100,7 @@ function NineRows({
           </td>
         ))}
         <td className="p-1 font-semibold text-ink-900">{bTotal ?? "-"}</td>
-        <td className="p-1">
+        <td className={cn("p-1", STICKY_COL)}>
           <StatusCell isLeader={nineStatus.leaderSide === "B"} isSquare={isSquare} margin={nineStatus.margin} />
         </td>
       </tr>
@@ -127,7 +132,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">Out</th>
-              <th className="p-1 font-semibold">MP</th>
+              <th className={cn("p-1 font-semibold", STICKY_COL)}>MP</th>
             </tr>
           </thead>
           <tbody>
@@ -150,7 +155,7 @@ export function HoleByHoleScorecard({ match }: { match: MatchWithDetails }) {
                 </th>
               ))}
               <th className="p-1 font-semibold">In</th>
-              <th className="p-1 font-semibold">MP</th>
+              <th className={cn("p-1 font-semibold", STICKY_COL)}>MP</th>
             </tr>
           </thead>
           <tbody>
