@@ -6,16 +6,18 @@ export function RoundScoreBanner({
   teamBName,
   teamATotal,
   teamBTotal,
-  pointsPlayed,
   pointsAvailable,
 }: {
   teamAName: string;
   teamBName: string;
   teamATotal: number;
   teamBTotal: number;
-  pointsPlayed: number;
   pointsAvailable: number;
 }) {
+  // Score increments are always in halves (a tied segment splits 0.5/0.5),
+  // so "strictly more than half" is always a reachable number here.
+  const pointsToWin = pointsAvailable / 2 + 0.5;
+
   return (
     <div className="rounded-2xl bg-fairway-950 fairway-texture px-6 py-8 text-center shadow-lg">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-400">Round Score</p>
@@ -28,9 +30,7 @@ export function RoundScoreBanner({
           {teamBName} {formatPoints(teamBTotal)}
         </span>
       </p>
-      <p className="mt-2 text-xs text-cream-100/40">
-        {formatPoints(pointsPlayed)} of {pointsAvailable} points decided
-      </p>
+      <p className="mt-2 text-xs text-cream-100/40">{formatPoints(pointsToWin)} points wins the round</p>
     </div>
   );
 }
