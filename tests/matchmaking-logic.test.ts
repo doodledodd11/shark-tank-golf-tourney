@@ -85,4 +85,22 @@ describe("computeMatchmakingState", () => {
     expect(state.onTheClockTeamId).toBe("teamB");
     expect(state.phase).toBe("ANNOUNCE");
   });
+
+  it("lets an admin override which team announces first", () => {
+    const pairings = [pairing("a1", "teamA"), pairing("b1", "teamB")];
+    const state = computeMatchmakingState(mmTeams, pairings, 0, "teamB");
+    expect(state.onTheClockTeamId).toBe("teamB");
+  });
+
+  it("still alternates correctly off a non-default first announcer", () => {
+    const pairings = [pairing("a1", "teamA"), pairing("b1", "teamB")];
+    expect(computeMatchmakingState(mmTeams, pairings, 0, "teamB").onTheClockTeamId).toBe("teamB");
+    expect(computeMatchmakingState(mmTeams, pairings, 1, "teamB").onTheClockTeamId).toBe("teamA");
+  });
+
+  it("falls back to the default (team order 0) when the override doesn't match a real team", () => {
+    const pairings = [pairing("a1", "teamA"), pairing("b1", "teamB")];
+    const state = computeMatchmakingState(mmTeams, pairings, 0, "not-a-real-team-id");
+    expect(state.onTheClockTeamId).toBe("teamA");
+  });
 });

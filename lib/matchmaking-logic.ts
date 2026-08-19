@@ -69,11 +69,18 @@ export interface MatchmakingState {
  * still-unmatched pairings and how many matches have been built so far —
  * the announcer alternates by match count the same way draft turns
  * alternate by pick count, and self-corrects the same way too (a team out
- * of twosomes is skipped rather than leaving nobody able to announce). */
+ * of twosomes is skipped rather than leaving nobody able to announce).
+ *
+ * `firstAnnouncerTeamId`, if given, is which team announces on an *even*
+ * match count (0, 2, 4, ...) instead of the default team order 0 — an
+ * admin override, since the rules don't otherwise say who goes first. Any
+ * value that isn't one of the two team ids is treated the same as not
+ * passing one at all. */
 export function computeMatchmakingState(
   teams: [MatchmakingTeam, MatchmakingTeam],
   unmatchedPairings: UnmatchedPairing[],
   matchesBuiltCount: number,
+  firstAnnouncerTeamId?: string | null,
 ): MatchmakingState {
   if (unmatchedPairings.length === 0) {
     return { phase: null, onTheClockTeamId: null, announcedPairingId: null, isComplete: true };
@@ -86,7 +93,9 @@ export function computeMatchmakingState(
   }
 
   const [teamX, teamY] = teams;
-  const preferred = matchesBuiltCount % 2 === 0 ? teamX : teamY;
+  const firstAnnouncer = teams.find((t) => t.id === firstAnnouncerTeamId) ?? teamX;
+  const secondAnnouncer = teams.find((t) => t.id !== firstAnnouncer.id) ?? teamY;
+  const preferred = matchesBuiltCount % 2 === 0 ? firstAnnouncer : secondAnnouncer;
   const preferredHasPairings = unmatchedPairings.some((p) => p.teamId === preferred.id);
   const announcer = preferredHasPairings ? preferred : (teams.find((t) => t.id !== preferred.id) ?? preferred);
 

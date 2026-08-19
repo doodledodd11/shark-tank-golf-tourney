@@ -145,6 +145,11 @@ model Round {
   // playoff decides who advances (see Match.isPlayoff).
   playoffWinnerTeamId String?
 
+  // Admin override for which team announces first during live matchmaking
+  // (see lib/matchmaking-logic.ts). Null means the default — team order 0
+  // — same as before this existed, so old rounds behave unchanged.
+  firstAnnouncerTeamId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -208,6 +213,12 @@ model TeamMembership {
   team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   playerId String
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Same idea as Pairing.announced, one level down: the championship's
+  // singles matchmaking announces individual players instead of twosomes,
+  // and a player's TeamMembership row (round + team scoped already) is
+  // where that in-flight state naturally lives.
+  announced Boolean @default(false)
 
   createdAt DateTime @default(now())
 

@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import {
   ensureCaptainAccessTokensLogic,
+  setFirstAnnouncerLogic,
   getTwosomeLockBoardData,
   lockTwosomeLogic,
   deleteTwosomeLogic,
@@ -12,6 +13,11 @@ import {
   announcePairingLogic,
   respondToPairingLogic,
   cancelMatchmakingLogic,
+  randomizeChampionshipTeamMatchupsLogic,
+  getSinglesMatchmakingBoardData,
+  announceSinglesLogic,
+  respondToSinglesLogic,
+  cancelSinglesMatchmakingLogic,
 } from "@/lib/matchmaking";
 
 const TEST_SEASON = 2098; // distinct from db-relations.test.ts's 2099, same cleanup idea
@@ -22,15 +28,17 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-/** A Round 1-shaped round with two teams already rostered — `playersPerTeam`
- * players each, named so tests can address them directly. No pairings yet. */
-async function makeRosteredRound(playersPerTeam: number) {
+/** A rostered round with two teams already set up — `playersPerTeam`
+ * players each, named so tests can address them directly. No pairings yet.
+ * Defaults to a Round 1 shape; pass `roundNumber: 3` for championship
+ * fixtures. */
+async function makeRosteredRound(playersPerTeam: number, roundNumber = 1) {
   const tournament = await prisma.tournament.create({ data: { name: "Matchmaking Test", season: TEST_SEASON } });
   const round = await prisma.round.create({
     data: {
       tournamentId: tournament.id,
-      number: 1,
-      name: "Round 1",
+      number: roundNumber,
+      name: roundNumber === 3 ? "Championship" : `Round ${roundNumber}`,
       playersStart: playersPerTeam * 4,
       playersAdvance: playersPerTeam * 2,
     },
@@ -257,5 +265,111 @@ describe("live matchmaking", () => {
     const board = await getMatchmakingBoardData(round.id);
     expect(board!.phase).toBe("ANNOUNCE");
     expect(board!.onTheClockTeamId).toBe(teamA.id);
+  });
+});
+
+describe("championship: random team matchups + singles matchmaking", () => {
+  async function lockAllTwosomes(roundId: string, teamId: string, token: string, players: { id: string }[]) {
+    for (let i = 0; i < players.length; i += 2) {
+      await lockTwosomeLogic({ roundId, captainToken: token, player1Id: players[i]!.id, player2Id: players[i + 1]!.id });
+    }
+  }
+
+  it("randomizes the two 2v2 matchups from locked twosomes, using the championship segment template", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3); // 2 pairings/team
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+
+    const result = await randomizeChampionshipTeamMatchupsLogic(round.id);
+    expect(result.success).toBe(true);
+
+    const matches = await prisma.match.findMany({ where: { roundId: round.id }, include: { segments: true } });
+    expect(matches).toHaveLength(2);
+    for (const m of matches) {
+      expect(m.pairingAId).not.toBeNull();
+      expect(m.pairingBId).not.toBeNull();
+      expect(m.segments.map((s) => s.name)).toEqual(["Team Match"]); // CHAMPIONSHIP_TEAM template
+    }
+    // Every locked twosome ends up used exactly once.
+    const usedPairingIds = matches.flatMap((m) => [m.pairingAId, m.pairingBId]);
+    expect(new Set(usedPairingIds).size).toBe(4);
+  });
+
+  it("refuses to randomize for a non-championship round", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 1);
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+
+    const result = await randomizeChampionshipTeamMatchupsLogic(round.id);
+    expect(result.error).toBeTruthy();
+  });
+
+  it("runs singles matchmaking over individual players once the team matches exist, and lets an admin set who announces first", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+    await randomizeChampionshipTeamMatchupsLogic(round.id); // 2 team matches now exist
+
+    // Override the default: Team B should announce first, not Team A.
+    const setResult = await setFirstAnnouncerLogic(round.id, teamB.id);
+    expect(setResult.success).toBe(true);
+
+    const board1 = await getSinglesMatchmakingBoardData(round.id);
+    expect(board1!.phase).toBe("ANNOUNCE");
+    expect(board1!.onTheClockTeamId).toBe(teamB.id);
+    // All 8 players are still eligible for singles — the team matches don't count against them.
+    expect(board1!.players).toHaveLength(8);
+    expect(board1!.players.every((p) => !p.opponentPlayerId)).toBe(true);
+
+    const announce1 = await announceSinglesLogic({ roundId: round.id, captainToken: tB!.captainAccessToken!, playerId: teamBPlayers[0]!.id });
+    expect(announce1.success).toBe(true);
+
+    const board2 = await getSinglesMatchmakingBoardData(round.id);
+    expect(board2!.phase).toBe("RESPOND");
+    expect(board2!.onTheClockTeamId).toBe(teamA.id);
+    expect(board2!.announcedPlayerId).toBe(teamBPlayers[0]!.id);
+
+    const respond1 = await respondToSinglesLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, playerId: teamAPlayers[0]!.id });
+    expect(respond1.success).toBe(true);
+
+    const singlesMatch = await prisma.match.findFirstOrThrow({
+      where: { roundId: round.id, pairingAId: null, pairingBId: null, isPlayoff: false },
+      include: { participants: true, segments: true },
+    });
+    expect(singlesMatch.participants.map((p) => p.playerId).sort()).toEqual([teamAPlayers[0]!.id, teamBPlayers[0]!.id].sort());
+    expect(singlesMatch.segments.map((s) => s.name)).toEqual(["Singles Match"]);
+
+    // That player no longer shows up as available in either the singles
+    // board or the team-match board (they're each still on their team's
+    // roster overall, just already spoken for in singles).
+    const board3 = await getSinglesMatchmakingBoardData(round.id);
+    expect(board3!.players.find((p) => p.id === teamBPlayers[0]!.id)!.opponentPlayerId).toBe(teamAPlayers[0]!.id);
+  }, 30_000);
+
+  it("cancelSinglesMatchmakingLogic removes only the singles matches, leaving the team matches alone", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+    await randomizeChampionshipTeamMatchupsLogic(round.id);
+
+    await announceSinglesLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, playerId: teamAPlayers[0]!.id });
+    await respondToSinglesLogic({ roundId: round.id, captainToken: tB!.captainAccessToken!, playerId: teamBPlayers[0]!.id });
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(3); // 2 team + 1 singles
+
+    const result = await cancelSinglesMatchmakingLogic(round.id);
+    expect(result.success).toBe(true);
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(2); // team matches survive
+
+    const board = await getSinglesMatchmakingBoardData(round.id);
+    expect(board!.phase).toBe("ANNOUNCE");
+    expect(board!.players.every((p) => !p.announced && !p.opponentPlayerId)).toBe(true);
   });
 });
