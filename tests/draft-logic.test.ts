@@ -18,17 +18,24 @@ function tierPlayers(tier: number, count: number, prefix: string): DraftPlayer[]
 // A believable Round 1 pool: 8 players per tier, 32 total.
 const round1Pool: DraftPlayer[] = [1, 2, 3, 4].flatMap((tier) => tierPlayers(tier, 8, `t${tier}-`));
 
+// Both captains are auto-seated as their team's first roster slot before
+// any real picking happens (see startDraftLogic in lib/draft.ts) — this is
+// the real state computeDraftState always sees in production, so tests
+// seed it the same way rather than starting from a literal empty roster.
+const bothCaptainsSeated = { teamA: ["captainA"], teamB: ["captainB"] };
+
 describe("computeDraftState", () => {
-  it("opens a fresh Round 1 draft with the order-0 team on the clock", () => {
-    const state = computeDraftState(teams, {}, round1Pool, 32);
+  it("opens a fresh Round 1 draft with the order-0 team on the clock for the first real pick", () => {
+    const state = computeDraftState(teams, bothCaptainsSeated, round1Pool, 32);
     expect(state).toEqual({ onTheClockTeamId: "teamA", recommendedPicksPerTier: 4, isComplete: false });
   });
 
-  it("alternates strictly by total picks made (A, B, A, B, ...), independent of tier", () => {
+  it("runs a snake order: the first team picks alone, then picks alternate in same-team pairs", () => {
     const picks: string[] = [];
-    const roster: Record<string, string[]> = { teamA: [], teamB: [] };
+    const roster: Record<string, string[]> = { teamA: ["captainA"], teamB: ["captainB"] };
 
-    for (let i = 0; i < 32; i++) {
+    // 32 roster slots total, 2 already filled by the seeded captains -> 30 real picks left.
+    for (let i = 0; i < 30; i++) {
       const state = computeDraftState(teams, roster, round1Pool, 32);
       if (state.isComplete) break;
       picks.push(state.onTheClockTeamId!);
@@ -37,16 +44,23 @@ describe("computeDraftState", () => {
       roster[state.onTheClockTeamId!]!.push(next.id);
     }
 
-    expect(picks).toHaveLength(32);
-    expect(picks.every((p, i) => p === (i % 2 === 0 ? "teamA" : "teamB"))).toBe(true);
+    expect(picks).toHaveLength(30);
+    expect(picks[0]).toBe("teamA"); // first team to pick gets just the one pick...
+    expect(picks[1]).toBe("teamB"); // ...then the other team gets a two-pick makeup right away
+    for (let i = 1; i + 1 < picks.length; i += 2) {
+      expect(picks[i]).toBe(picks[i + 1]); // every pair after the opener goes to the same team
+    }
+    for (let i = 1; i + 2 < picks.length; i += 2) {
+      expect(picks[i]).not.toBe(picks[i + 2]); // consecutive pairs alternate which team
+    }
     expect(roster.teamA).toHaveLength(16);
     expect(roster.teamB).toHaveLength(16);
   });
 
   it("allows a team to draft out of tier order — e.g. a tier-4 player before any tier-1 pick", () => {
-    // Team A's very first pick is from tier 4, well before tier 1 is touched.
+    // Team A's first real pick is from tier 4, well before tier 1 is touched.
     const tier4Id = round1Pool.find((p) => p.tier === 4)!.id;
-    const roster = { teamA: [tier4Id], teamB: [] };
+    const roster = { teamA: ["captainA", tier4Id], teamB: ["captainB"] };
     const state = computeDraftState(teams, roster, round1Pool, 32);
     // Nothing about this is invalid — it's simply Team B's turn next, same
     // as it would be after any other single pick.
@@ -65,13 +79,6 @@ describe("computeDraftState", () => {
     };
     const state = computeDraftState(teams, roster, round1Pool, 32);
     expect(state).toEqual({ onTheClockTeamId: null, recommendedPicksPerTier: 4, isComplete: true });
-  });
-
-  it("self-corrects toward balance if the two teams' pick counts get out of sync", () => {
-    const someIds = round1Pool.slice(0, 3).map((p) => p.id);
-    const roster = { teamA: someIds, teamB: [] };
-    const state = computeDraftState(teams, roster, round1Pool, 32);
-    expect(state.onTheClockTeamId).toBe("teamB");
   });
 
   it("skips a team that has already filled its whole roster, even on equal-looking counts", () => {

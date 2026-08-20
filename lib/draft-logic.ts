@@ -54,6 +54,21 @@ export function recommendedRemainingByTier(
 }
 
 /**
+ * Snake-draft position: index 0 (the very first real pick, after both
+ * captains are auto-seated as pick zero — see startDraftLogic) goes to the
+ * order-0 team; from then on, picks come in pairs — index 1-2 to the
+ * order-1 team, 3-4 back to order-0, 5-6 to order-1, and so on. That gives
+ * whoever picks second a two-pick "makeup" right after whoever picked
+ * first, which is the standard fantasy-sports snake (serpentine) draft —
+ * for exactly two teams it reduces to this 1-2-2-2-2... pattern.
+ */
+function snakeTeamAtIndex(index: number, teamX: DraftTeam, teamY: DraftTeam): DraftTeam {
+  if (index <= 0) return teamX;
+  const block = Math.floor((index - 1) / 2);
+  return block % 2 === 0 ? teamY : teamX;
+}
+
+/**
  * Figures out the current state of a round's live draft from its actual
  * roster (`rosterPlayerIds` per team) against the pool of players eligible
  * for the round. `playersStart` drives each team's total roster size and
@@ -77,14 +92,20 @@ export function computeDraftState(
     return { onTheClockTeamId: null, recommendedPicksPerTier, isComplete: true };
   }
 
-  // Whichever team has made fewer picks goes next (a tie favors the
-  // order-0 team); a team that's already filled its roster is skipped
-  // even if the raw counts would otherwise point back to it. In the
-  // normal case (no manual overrides) this produces the same strict
-  // A, B, A, B, ... alternation as before, just without tier phases.
-  const xEligible = xMade < totalPicksPerTeam;
-  const yEligible = yMade < totalPicksPerTeam;
-  const onTheClock = xEligible && (!yEligible || xMade <= yMade) ? teamX : teamY;
+  // Both captains are seated as their team's pick zero before any real
+  // picking happens, so the snake sequence only covers what's made since —
+  // xMade/yMade each start at 1, hence the -1s below. Driven off the total
+  // rather than either team's own count since the snake schedule isn't
+  // "whoever's behind goes next" — a team can legitimately be two picks
+  // ahead mid-sequence and still be correct.
+  const picksIntoSequence = xMade - 1 + (yMade - 1);
+  let onTheClock = snakeTeamAtIndex(picksIntoSequence, teamX, teamY);
+  // A team that's already filled its roster is skipped even if the
+  // schedule would otherwise point back to it (shouldn't happen from
+  // normal captain-driven play, but keeps this correct if a roster ever
+  // gets out of step with the schedule, e.g. a manual admin edit).
+  if (onTheClock.id === teamX.id && xMade >= totalPicksPerTeam) onTheClock = teamY;
+  else if (onTheClock.id === teamY.id && yMade >= totalPicksPerTeam) onTheClock = teamX;
 
   return { onTheClockTeamId: onTheClock.id, recommendedPicksPerTier, isComplete: false };
 }

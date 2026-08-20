@@ -185,6 +185,26 @@ export async function lockTwosomeLogic(input: {
       locked: true,
     },
   });
+
+  // If that leaves exactly two players on my own roster unpaired, they can
+  // only go together — auto-lock that last twosome too instead of making
+  // the captain click again for the one pairing that isn't a real choice.
+  const stillUnpaired = myTeam.memberships
+    .map((m) => m.playerId)
+    .filter((id) => id !== input.player1Id && id !== input.player2Id && !pairedPlayerIds.has(id));
+  if (stillUnpaired.length === 2) {
+    await prisma.pairing.create({
+      data: {
+        roundId: input.roundId,
+        teamId: myTeam.id,
+        player1Id: stillUnpaired[0]!,
+        player2Id: stillUnpaired[1]!,
+        order: myPairings.length + 1,
+        locked: true,
+      },
+    });
+  }
+
   return { success: true };
 }
 
@@ -323,6 +343,35 @@ export async function announcePairingLogic(input: { roundId: string; captainToke
   return { success: true };
 }
 
+function pairingMatchCreateData(input: {
+  roundId: string;
+  matchNumber: number;
+  teamAId: string;
+  teamBId: string;
+  teamAPairing: { id: string; player1Id: string; player2Id: string };
+  teamBPairing: { id: string; player1Id: string; player2Id: string };
+  template: keyof typeof SEGMENT_TEMPLATES;
+}) {
+  return {
+    roundId: input.roundId,
+    matchNumber: input.matchNumber,
+    teamAId: input.teamAId,
+    teamBId: input.teamBId,
+    pairingAId: input.teamAPairing.id,
+    pairingBId: input.teamBPairing.id,
+    status: "COURSE_SELECTION" as const,
+    participants: {
+      create: [
+        { playerId: input.teamAPairing.player1Id, side: "A" as const },
+        { playerId: input.teamAPairing.player2Id, side: "A" as const },
+        { playerId: input.teamBPairing.player1Id, side: "B" as const },
+        { playerId: input.teamBPairing.player2Id, side: "B" as const },
+      ],
+    },
+    segments: { create: SEGMENT_TEMPLATES[input.template] },
+  };
+}
+
 export async function respondToPairingLogic(input: { roundId: string; captainToken: string; pairingId: string }): Promise<FormState> {
   const round = await getRoundWithDetails(input.roundId);
   if (!round) return { error: "Round not found." };
@@ -349,31 +398,46 @@ export async function respondToPairingLogic(input: { roundId: string; captainTok
   if (!announcedPairing) return { error: "The announced twosome couldn't be found." };
 
   const teamAId = round.teams[0]!.id;
+  const teamBId = round.teams[1]!.id;
   const teamAPairing = announcedPairing.teamId === teamAId ? announcedPairing : responsePairing;
   const teamBPairing = announcedPairing.teamId === teamAId ? responsePairing : announcedPairing;
 
+  // If that leaves exactly one twosome per team, they can only play each
+  // other — auto-build that final match too instead of making the
+  // captains go through announce/respond for a pairing that isn't a real
+  // choice.
+  const remaining = unmatched.filter((p) => p.id !== teamAPairing.id && p.id !== teamBPairing.id);
+  const remainingA = remaining.find((p) => p.teamId === teamAId);
+  const remainingB = remaining.find((p) => p.teamId === teamBId);
+
   await prisma.$transaction([
     prisma.match.create({
-      data: {
+      data: pairingMatchCreateData({
         roundId: input.roundId,
         matchNumber: round.matches.length + 1,
-        teamAId: round.teams[0]!.id,
-        teamBId: round.teams[1]!.id,
-        pairingAId: teamAPairing.id,
-        pairingBId: teamBPairing.id,
-        status: "COURSE_SELECTION",
-        participants: {
-          create: [
-            { playerId: teamAPairing.player1Id, side: "A" },
-            { playerId: teamAPairing.player2Id, side: "A" },
-            { playerId: teamBPairing.player1Id, side: "B" },
-            { playerId: teamBPairing.player2Id, side: "B" },
-          ],
-        },
-        segments: { create: SEGMENT_TEMPLATES[template] },
-      },
+        teamAId,
+        teamBId,
+        teamAPairing,
+        teamBPairing,
+        template,
+      }),
     }),
     prisma.pairing.update({ where: { id: announcedPairing.id }, data: { announced: false } }),
+    ...(remaining.length === 2 && remainingA && remainingB
+      ? [
+          prisma.match.create({
+            data: pairingMatchCreateData({
+              roundId: input.roundId,
+              matchNumber: round.matches.length + 2,
+              teamAId,
+              teamBId,
+              teamAPairing: remainingA,
+              teamBPairing: remainingB,
+              template,
+            }),
+          }),
+        ]
+      : []),
   ]);
   return { success: true };
 }
@@ -572,6 +636,30 @@ export async function announceSinglesLogic(input: { roundId: string; captainToke
   return { success: true };
 }
 
+function singlesMatchCreateData(input: {
+  roundId: string;
+  matchNumber: number;
+  teamAId: string;
+  teamBId: string;
+  sideAPlayerId: string;
+  sideBPlayerId: string;
+}) {
+  return {
+    roundId: input.roundId,
+    matchNumber: input.matchNumber,
+    teamAId: input.teamAId,
+    teamBId: input.teamBId,
+    status: "COURSE_SELECTION" as const,
+    participants: {
+      create: [
+        { playerId: input.sideAPlayerId, side: "A" as const },
+        { playerId: input.sideBPlayerId, side: "B" as const },
+      ],
+    },
+    segments: { create: SEGMENT_TEMPLATES.CHAMPIONSHIP_SINGLES },
+  };
+}
+
 export async function respondToSinglesLogic(input: { roundId: string; captainToken: string; playerId: string }): Promise<FormState> {
   const round = await getRoundWithDetails(input.roundId);
   if (!round) return { error: "Round not found." };
@@ -597,27 +685,44 @@ export async function respondToSinglesLogic(input: { roundId: string; captainTok
   if (!announced) return { error: "The announced player couldn't be found." };
 
   const teamAId = round.teams[0]!.id;
+  const teamBId = round.teams[1]!.id;
   const sideAPlayer = announced.teamId === teamAId ? announced : responder;
   const sideBPlayer = announced.teamId === teamAId ? responder : announced;
 
+  // If that leaves exactly one player per team, they can only play each
+  // other — auto-build that final singles match too instead of making the
+  // captains go through announce/respond for a pairing that isn't a real
+  // choice.
+  const remaining = unmatched.filter((p) => p.id !== sideAPlayer.id && p.id !== sideBPlayer.id);
+  const remainingA = remaining.find((p) => p.teamId === teamAId);
+  const remainingB = remaining.find((p) => p.teamId === teamBId);
+
   await prisma.$transaction([
     prisma.match.create({
-      data: {
+      data: singlesMatchCreateData({
         roundId: input.roundId,
         matchNumber: round.matches.length + 1,
-        teamAId: round.teams[0]!.id,
-        teamBId: round.teams[1]!.id,
-        status: "COURSE_SELECTION",
-        participants: {
-          create: [
-            { playerId: sideAPlayer.id, side: "A" },
-            { playerId: sideBPlayer.id, side: "B" },
-          ],
-        },
-        segments: { create: SEGMENT_TEMPLATES.CHAMPIONSHIP_SINGLES },
-      },
+        teamAId,
+        teamBId,
+        sideAPlayerId: sideAPlayer.id,
+        sideBPlayerId: sideBPlayer.id,
+      }),
     }),
     prisma.teamMembership.updateMany({ where: { teamId: announced.teamId, playerId: announced.id }, data: { announced: false } }),
+    ...(remaining.length === 2 && remainingA && remainingB
+      ? [
+          prisma.match.create({
+            data: singlesMatchCreateData({
+              roundId: input.roundId,
+              matchNumber: round.matches.length + 2,
+              teamAId,
+              teamBId,
+              sideAPlayerId: remainingA.id,
+              sideBPlayerId: remainingB.id,
+            }),
+          }),
+        ]
+      : []),
   ]);
   return { success: true };
 }

@@ -454,15 +454,15 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
     // Fill the rest of Team A's tier-1 recommended target directly (the
     // captain already took one), bypassing the pick flow — this test only
     // cares about what happens once that target is hit, not about getting
-    // there through real alternating turns. Team B gets an equal number of
-    // (unrelated-tier) picks too, so the two teams stay tied on total picks
-    // and it's still Team A's turn.
+    // there through real alternating turns. Team B gets one unrelated-tier
+    // pick too, landing the snake schedule back on Team A (4 total picks
+    // for A, 2 for B — see computeDraftState's index math).
     const teamA = await prisma.team.findFirstOrThrow({ where: { roundId: round.id, order: 0 } });
     const teamB = await prisma.team.findFirstOrThrow({ where: { roundId: round.id, order: 1 } });
     await prisma.teamMembership.createMany({
       data: [
         ...[byTier[1]![2]!, byTier[1]![3]!, byTier[1]![4]!].map((p) => ({ teamId: teamA.id, playerId: p.id })),
-        ...[byTier[2]![2]!, byTier[2]![3]!, byTier[2]![4]!].map((p) => ({ teamId: teamB.id, playerId: p.id })),
+        ...[byTier[2]![2]!].map((p) => ({ teamId: teamB.id, playerId: p.id })),
       ],
     });
 
@@ -559,5 +559,44 @@ describe("live draft (startDraftLogic / submitDraftPickLogic)", () => {
     // A fresh draft can be started right away.
     const restarted = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
     expect(restarted.success).toBe(true);
+  });
+
+  it("auto-completes the final pick once only one eligible player and one open slot remain", async () => {
+    const tournament = await makeTournament();
+    const round = await prisma.round.create({
+      data: { tournamentId: tournament.id, number: 3, name: "Championship", playersStart: 8, playersAdvance: 8 },
+    });
+    const byTier: Record<number, { id: string; tier: number }[]> = { 1: [], 2: [], 3: [], 4: [] };
+    for (let tier = 1; tier <= 4; tier++) {
+      for (let i = 0; i < 2; i++) {
+        const p = await prisma.player.create({ data: { tournamentId: tournament.id, name: `Auto T${tier}-${i}`, tier } });
+        byTier[tier]!.push({ id: p.id, tier });
+      }
+    }
+    const captainA = byTier[1]![0]!;
+    const captainB = byTier[2]![0]!;
+    const started = await startDraftLogic({ roundId: round.id, captainAPlayerId: captainA.id, captainBPlayerId: captainB.id });
+    const teamAToken = started.tokens!.teamAToken;
+    const teamBToken = started.tokens!.teamBToken;
+
+    // 8 players total, 2 already seated as captains -> 6 real picks needed
+    // to fill both 4-player rosters. Make 5 of them by hand; that 5th pick
+    // should leave exactly one player and one open slot, which the site
+    // should seat on its own rather than requiring a pointless 6th click.
+    for (let i = 0; i < 5; i++) {
+      const board = await getDraftBoardData(round.id);
+      expect(board!.isComplete).toBe(false);
+      const onTheClock = board!.teams.find((t) => t.id === board!.onTheClockTeamId)!;
+      const token = onTheClock.order === 0 ? teamAToken : teamBToken;
+      const pick = board!.undraftedPlayers[0]!;
+      const result = await submitDraftPickLogic({ roundId: round.id, captainToken: token, playerId: pick.id });
+      expect(result.success).toBe(true);
+    }
+
+    const finalBoard = await getDraftBoardData(round.id);
+    expect(finalBoard!.isComplete).toBe(true);
+    expect(finalBoard!.undraftedPlayers).toHaveLength(0);
+    expect(finalBoard!.teams[0]!.roster).toHaveLength(4);
+    expect(finalBoard!.teams[1]!.roster).toHaveLength(4);
   });
 });

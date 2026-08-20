@@ -74,9 +74,11 @@ export default function RulesPage() {
 
             <RuleSection id="draft" number={3} title="Draft Rules">
               <p>
-                Two captains alternate picks, turn by turn, until both rosters are full. A captain can take any
-                undrafted player from any tier on their turn, no matter what their roster looks like so far. The
-                per-tier numbers below are a recommended target for a balanced roster, not a rule:
+                Picks run as a snake draft: the first captain picks once, then the other captain picks twice in a
+                row, then it flips back for two, and so on until both rosters are full — the standard way to even
+                out the advantage of picking first. A captain can take any undrafted player from any tier on their
+                turn, no matter what their roster looks like so far. The per-tier numbers below are a recommended
+                target for a balanced roster, not a rule:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>

@@ -177,6 +177,26 @@ export async function submitDraftPickLogic(input: {
   if (alreadyDrafted) return { error: "That player has already been drafted." };
 
   await prisma.teamMembership.create({ data: { teamId: myTeam.id, playerId: input.playerId } });
+
+  // If that was the second-to-last pick, there's exactly one eligible
+  // player and one open roster slot left — no real choice remains for
+  // whoever's on the clock next, so auto-seat it instead of forcing a
+  // pointless final click.
+  const draftedIds = new Set([...round.teams.flatMap((t) => t.memberships.map((m) => m.playerId)), input.playerId]);
+  const stillUndrafted = eligiblePlayers.filter((p) => !draftedIds.has(p.id));
+  if (stillUndrafted.length === 1) {
+    const freshRound = await getRoundWithDetails(input.roundId);
+    if (freshRound) {
+      const { draftTeams: freshTeams, rosterPlayerIdsByTeam: freshRoster } = toDraftTeams(freshRound);
+      const freshState = computeDraftState(freshTeams, freshRoster, eligiblePlayers, round.playersStart);
+      if (freshState.onTheClockTeamId) {
+        await prisma.teamMembership.create({
+          data: { teamId: freshState.onTheClockTeamId, playerId: stillUndrafted[0]!.id },
+        });
+      }
+    }
+  }
+
   return { success: true };
 }
 

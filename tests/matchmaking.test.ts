@@ -84,7 +84,10 @@ describe("ensureCaptainAccessTokensLogic", () => {
 
 describe("twosome locking", () => {
   it("scopes the board to the requesting captain's own team, and only counts the other team's progress", async () => {
-    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4);
+    // 6 players (3 required pairings) so locking just one leaves 4 players
+    // unpaired, not the 2 that would trigger this team's own auto-lock —
+    // this test wants a genuine "1 of 3 locked" partial state to check.
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(6);
     await ensureCaptainAccessTokensLogic(round.id);
     const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
     expect(tA!.id).toBe(teamA.id);
@@ -101,9 +104,9 @@ describe("twosome locking", () => {
     expect(board!.myTeamId).toBe(teamA.id);
     expect(board!.roster.map((p) => p.id).sort()).toEqual(teamAPlayers.map((p) => p.id).sort());
     expect(board!.pairings).toEqual([]); // Team A hasn't locked anything yet
-    expect(board!.requiredPairings).toBe(2); // 4 players / 2
+    expect(board!.requiredPairings).toBe(3); // 6 players / 2
     expect(board!.otherTeamLockedCount).toBe(1); // Team B's progress is visible as a count...
-    expect(board!.otherTeamRequired).toBe(2);
+    expect(board!.otherTeamRequired).toBe(3);
     // ...but nothing about WHO is in Team B's pairing is exposed anywhere on this board.
     expect(JSON.stringify(board)).not.toContain(teamBPlayers[0]!.name);
   });
@@ -155,6 +158,32 @@ describe("twosome locking", () => {
     expect(over.error).toBeTruthy();
   });
 
+  it("auto-locks the final twosome once only two players are left unpaired", async () => {
+    const { round, teamA, teamAPlayers } = await makeRosteredRound(4); // 2 required pairings
+    await ensureCaptainAccessTokensLogic(round.id);
+    const token = (await prisma.team.findUniqueOrThrow({ where: { id: teamA.id } })).captainAccessToken!;
+
+    const result = await lockTwosomeLogic({
+      roundId: round.id,
+      captainToken: token,
+      player1Id: teamAPlayers[0]!.id,
+      player2Id: teamAPlayers[1]!.id,
+    });
+    expect(result.success).toBe(true);
+
+    // The other two players on the roster can only go together — no
+    // second manual lock call needed.
+    const pairings = await prisma.pairing.findMany({ where: { teamId: teamA.id }, orderBy: { order: "asc" } });
+    expect(pairings).toHaveLength(2);
+    const secondPairing = pairings[1]!;
+    expect([secondPairing.player1Id, secondPairing.player2Id].sort()).toEqual(
+      [teamAPlayers[2]!.id, teamAPlayers[3]!.id].sort(),
+    );
+
+    const board = await getTwosomeLockBoardData(round.id, token);
+    expect(board!.isComplete).toBe(true);
+  });
+
   it("lets a captain delete an unmatched twosome to redo it", async () => {
     const { round, teamA, teamAPlayers } = await makeRosteredRound(4);
     await ensureCaptainAccessTokensLogic(round.id);
@@ -176,8 +205,11 @@ describe("live matchmaking", () => {
     }
   }
 
-  it("opens with Team A announcing, alternates through two full cycles, and builds real matches", async () => {
-    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4); // 2 pairings per team
+  it("opens with Team A announcing, alternates through two manual cycles, then auto-builds the final match", async () => {
+    // 3 pairings per team: two real announce/respond cycles, then the
+    // third and last pairing on each side can only play each other, so
+    // that match should be built automatically inside the 2nd respond.
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(6);
     await ensureCaptainAccessTokensLogic(round.id);
     const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
     await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
@@ -188,8 +220,8 @@ describe("live matchmaking", () => {
     expect(board1!.onTheClockTeamId).toBe(teamA.id);
     expect(board1!.isComplete).toBe(false);
 
-    const [pairingA1, pairingA2] = await prisma.pairing.findMany({ where: { teamId: teamA.id }, orderBy: { order: "asc" } });
-    const [pairingB1, pairingB2] = await prisma.pairing.findMany({ where: { teamId: teamB.id }, orderBy: { order: "asc" } });
+    const [pairingA1, pairingA2, pairingA3] = await prisma.pairing.findMany({ where: { teamId: teamA.id }, orderBy: { order: "asc" } });
+    const [pairingB1, pairingB2, pairingB3] = await prisma.pairing.findMany({ where: { teamId: teamB.id }, orderBy: { order: "asc" } });
 
     // Cycle 1: A announces, B responds.
     const announce1 = await announcePairingLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, pairingId: pairingA1!.id });
@@ -206,8 +238,11 @@ describe("live matchmaking", () => {
     const match1 = await prisma.match.findFirstOrThrow({ where: { roundId: round.id, matchNumber: 1 } });
     expect([match1.pairingAId, match1.pairingBId].sort()).toEqual([pairingA1!.id, pairingB1!.id].sort());
     expect(match1.status).toBe("COURSE_SELECTION");
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(1); // 4 pairings still unmatched, no auto-complete yet
 
-    // Cycle 2: now Team B announces (alternation), Team A responds.
+    // Cycle 2: now Team B announces (alternation), Team A responds. That
+    // leaves exactly one pairing per team (pairingA3/pairingB3), so the
+    // final match should get built automatically right here too.
     const board3 = await getMatchmakingBoardData(round.id);
     expect(board3!.phase).toBe("ANNOUNCE");
     expect(board3!.onTheClockTeamId).toBe(teamB.id);
@@ -219,8 +254,33 @@ describe("live matchmaking", () => {
     const finalBoard = await getMatchmakingBoardData(round.id);
     expect(finalBoard!.isComplete).toBe(true);
     expect(finalBoard!.phase).toBeNull();
-    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(2);
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(3); // 2 manual + 1 auto-built
+
+    const match3 = await prisma.match.findFirstOrThrow({ where: { roundId: round.id, matchNumber: 3 } });
+    expect([match3.pairingAId, match3.pairingBId].sort()).toEqual([pairingA3!.id, pairingB3!.id].sort());
+    expect(match3.status).toBe("COURSE_SELECTION");
   }, 60_000);
+
+  it("auto-builds the final match without an announce/respond cycle when it's a 1v1 forced pairing", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(2); // 1 pairing per team
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+
+    const [pairingA1] = await prisma.pairing.findMany({ where: { teamId: teamA.id } });
+    const [pairingB1] = await prisma.pairing.findMany({ where: { teamId: teamB.id } });
+    await announcePairingLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, pairingId: pairingA1!.id });
+    const respond = await respondToPairingLogic({ roundId: round.id, captainToken: tB!.captainAccessToken!, pairingId: pairingB1!.id });
+    expect(respond.success).toBe(true);
+
+    // This IS the last possible match already (1 pairing per team), so
+    // there's nothing left for the auto-complete to build — just confirms
+    // it doesn't try to conjure up an extra match from nothing.
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(1);
+    const board = await getMatchmakingBoardData(round.id);
+    expect(board!.isComplete).toBe(true);
+  });
 
   it("refuses an announcement out of turn, and a response before anything's announced", async () => {
     const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4);
@@ -350,6 +410,41 @@ describe("championship: random team matchups + singles matchmaking", () => {
     // roster overall, just already spoken for in singles).
     const board3 = await getSinglesMatchmakingBoardData(round.id);
     expect(board3!.players.find((p) => p.id === teamBPlayers[0]!.id)!.opponentPlayerId).toBe(teamAPlayers[0]!.id);
+  }, 30_000);
+
+  it("auto-builds the final singles match once only one player per team is left", async () => {
+    // 4 players/team = 4 singles matches needed total. Team 2v2 matches
+    // don't count against singles eligibility (see board1's assertion in
+    // the test above), so all 8 stay eligible regardless.
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+    await randomizeChampionshipTeamMatchupsLogic(round.id);
+
+    // Three manual announce/respond cycles, alternating who announces.
+    for (let i = 0; i < 3; i++) {
+      const board = await getSinglesMatchmakingBoardData(round.id);
+      expect(board!.isComplete).toBe(false);
+      const announcerToken = board!.onTheClockTeamId === teamA.id ? tA!.captainAccessToken! : tB!.captainAccessToken!;
+      const announcePlayer = board!.players.find((p) => p.teamId === board!.onTheClockTeamId && !p.opponentPlayerId)!;
+      await announceSinglesLogic({ roundId: round.id, captainToken: announcerToken, playerId: announcePlayer.id });
+
+      const boardAfterAnnounce = await getSinglesMatchmakingBoardData(round.id);
+      const responderToken = boardAfterAnnounce!.onTheClockTeamId === teamA.id ? tA!.captainAccessToken! : tB!.captainAccessToken!;
+      const responsePlayer = boardAfterAnnounce!.players.find(
+        (p) => p.teamId === boardAfterAnnounce!.onTheClockTeamId && !p.opponentPlayerId,
+      )!;
+      const result = await respondToSinglesLogic({ roundId: round.id, captainToken: responderToken, playerId: responsePlayer.id });
+      expect(result.success).toBe(true);
+    }
+
+    // 3 manual cycles = 3 matches built by hand; that leaves exactly one
+    // player per team, which should already be auto-matched by now.
+    const finalBoard = await getSinglesMatchmakingBoardData(round.id);
+    expect(finalBoard!.isComplete).toBe(true);
+    expect(await prisma.match.count({ where: { roundId: round.id, pairingAId: null, pairingBId: null, isPlayoff: false } })).toBe(4);
   }, 30_000);
 
   it("cancelSinglesMatchmakingLogic removes only the singles matches, leaving the team matches alone", async () => {

@@ -13,7 +13,7 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
   {
     title: "Captains draft their own teams",
-    body: "Two captains alternate picks, turn by turn, choosing any undrafted player from any tier. Tier counts are shown as a recommended target for balance, but a captain can lean into a tier that's proving itself.",
+    body: "Picks run as a snake draft: the first captain picks once, then the other captain picks twice in a row, then it goes back to picking twice in a row, and so on — the standard way to even out the advantage of picking first. Either captain can choose any undrafted player from any tier. Tier counts are shown as a recommended target for balance, but a captain can lean into a tier that's proving itself.",
   },
   {
     title: "Teams privately build twosomes",
