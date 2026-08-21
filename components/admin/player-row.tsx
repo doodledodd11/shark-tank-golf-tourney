@@ -160,6 +160,16 @@ export function PlayerRow({
 
       {expanded && (
         <div className="mt-2 grid grid-cols-2 gap-2 border-t border-stone-100 pt-2 sm:grid-cols-3 lg:grid-cols-6">
+          <input
+            name="seed"
+            type="number"
+            min={1}
+            max={8}
+            defaultValue={player.seed ?? ""}
+            placeholder="Seed (1-8)"
+            title="Rank within this player's tier, from GHIN/handicap seeding"
+            className={`${inputClass} py-1.5`}
+          />
           <input name="email" type="email" defaultValue={player.email ?? ""} placeholder="Email" className={`${inputClass} py-1.5`} />
           <input name="phone" type="tel" defaultValue={player.phone ?? ""} placeholder="Phone" className={`${inputClass} py-1.5`} />
           <select name="gender" defaultValue={player.gender ?? ""} className={`${inputClass} py-1.5`}>

@@ -63,8 +63,9 @@ export default function RulesPage() {
             <RuleSection id="tiers" number={2} title="Skill Tiers">
               <p>
                 All 32 players are ranked into four tiers of eight, from strongest (Tier 1) to most developing
-                (Tier 4). Tiers are a guide for captains building a balanced roster, not a requirement, so a captain
-                is free to lean into a tier that&apos;s proving itself if that&apos;s the better call.
+                (Tier 4), and seeded 1-8 within their own tier from GHIN/handicap data. Tiers are a guide for
+                captains building a balanced roster, not a requirement, so a captain is free to lean into a tier
+                that&apos;s proving itself if that&apos;s the better call.
               </p>
               <p>
                 A player&apos;s handicap index may be shown on their profile for informational purposes only. It has
@@ -74,11 +75,18 @@ export default function RulesPage() {
 
             <RuleSection id="draft" number={3} title="Draft Rules">
               <p>
-                Picks run as a snake draft: the first captain picks once, then the other captain picks twice in a
-                row, then it flips back for two, and so on until both rosters are full — the standard way to even
-                out the advantage of picking first. A captain can take any undrafted player from any tier on their
-                turn, no matter what their roster looks like so far. The per-tier numbers below are a recommended
-                target for a balanced roster, not a rule:
+                The worse-seeded captain (lowest tier, then highest seed within it) always drafts first. If the two
+                captains happen to be in different tiers, each is also automatically seated with one bonus
+                teammate before drafting starts: whoever holds their own seed number in the other captain&apos;s
+                tier.
+              </p>
+              <p>
+                From there, picks run as a snake: the first captain&apos;s pick is free (any tier), the other
+                captain&apos;s reply is locked to that same tier, then it&apos;s a free pick again, mirrored again,
+                and so on until both rosters are full — the standard way to even out the advantage of picking first
+                while keeping both rosters balanced across tiers. The per-tier numbers below are a recommended
+                target, not a hard rule — if a mirrored tier ever runs out of players, that pick opens back up to
+                any tier:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>
@@ -162,10 +170,12 @@ export default function RulesPage() {
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>
-                  <strong>First 18:</strong> two 2v2 team matches.
+                  <strong>First 18:</strong> two 2v2 team matches, drawn at random from each team&apos;s locked
+                  twosomes.
                 </li>
                 <li>
-                  <strong>Second 18:</strong> four 1v1 singles matches.
+                  <strong>Second 18:</strong> four 1v1 singles matches, paired by seed rank within each team&apos;s
+                  own roster — best vs best, 2nd-best vs 2nd-best, and so on, rather than captains choosing.
                 </li>
               </ul>
               <p>

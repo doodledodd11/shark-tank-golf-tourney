@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getActiveTournament, getAllPlayers, getRoundWithDetails } from "@/lib/data";
 import { getEligiblePlayersForRound } from "@/lib/player-status";
 import { getDraftBoardData } from "@/lib/draft";
-import { getSinglesMatchmakingBoardData } from "@/lib/matchmaking";
 import { computeTwosomeLockState, computeMatchmakingState, type MatchmakingTeam } from "@/lib/matchmaking-logic";
 import { RoundSetupChoice } from "@/components/admin/round-setup-choice";
 import { LiveDraftAdminPanel } from "@/components/admin/live-draft-admin-panel";
@@ -11,8 +10,8 @@ import { RoundPairingsManager } from "@/components/admin/round-pairings-manager"
 import { LiveTwosomeLockAdminPanel } from "@/components/admin/live-twosome-lock-panel";
 import { RoundMatchCreator } from "@/components/admin/round-match-creator";
 import { LiveMatchmakingAdminPanel } from "@/components/admin/live-matchmaking-panel";
-import { LiveSinglesMatchmakingAdminPanel } from "@/components/admin/live-singles-matchmaking-panel";
 import { RandomizeTeamMatchupsButton } from "@/components/admin/randomize-team-matchups-button";
+import { PairSinglesBySeedButton } from "@/components/admin/pair-singles-by-seed-button";
 import { SetFirstAnnouncerField } from "@/components/admin/set-first-announcer-field";
 import { RoundMatchList } from "@/components/admin/round-match-list";
 import { RoundCompletePanel } from "@/components/admin/round-complete-panel";
@@ -92,21 +91,12 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
       : "";
 
   // Championship-only: team matchups are drawn randomly once twosomes are
-  // locked, then singles matchmaking (live, over individual players) picks
-  // up from there.
+  // locked, then singles matches are paired by seed rank from there.
   const championshipTeamMatchesBuilt = round.matches.filter((m) => m.pairingAId && m.pairingBId).length;
   const championshipTeamPhaseDone = Boolean(twosomeLockState?.isComplete) && unmatchedPairings.length === 0 && championshipTeamMatchesBuilt > 0;
   const singlesRosterSize = round.teams[0]?.memberships.length ?? 0;
-
-  const singlesBoard =
-    isChampionshipRound && championshipTeamPhaseDone && hasCaptainTokens ? await getSinglesMatchmakingBoardData(round.id) : null;
-  const singlesPhaseDone = Boolean(singlesBoard?.isComplete) || round.matches.filter((m) => !m.pairingAId && !m.pairingBId && !m.isPlayoff).length >= singlesRosterSize;
-  const singlesMatchmakingInProgress = Boolean(singlesBoard && !singlesBoard.isComplete);
-  const singlesOnTheClockTeam = round.teams.find((t) => t.id === singlesBoard?.onTheClockTeamId);
-  const singlesStatusLabel =
-    singlesBoard && !singlesBoard.isComplete
-      ? `${singlesOnTheClockTeam?.name ?? "?"} to ${singlesBoard.phase === "ANNOUNCE" ? "announce" : "respond"} (${round.matches.filter((m) => !m.pairingAId && !m.pairingBId && !m.isPlayoff).length} of ${singlesRosterSize} matched)`
-      : "";
+  const singlesMatchesBuilt = round.matches.filter((m) => !m.pairingAId && !m.pairingBId && !m.isPlayoff).length;
+  const singlesPhaseDone = singlesMatchesBuilt >= singlesRosterSize && singlesRosterSize > 0;
 
   return (
     <div className="max-w-5xl space-y-8">
@@ -190,33 +180,14 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
                 )}
 
                 {championshipTeamPhaseDone && !singlesPhaseDone && (
-                  <>
-                    <div className="rounded-2xl border border-stone-200 bg-white p-3">
-                      <SetFirstAnnouncerField
-                        roundId={round.id}
-                        teams={round.teams.map((t) => ({ id: t.id, name: t.name }))}
-                        currentFirstAnnouncerTeamId={round.firstAnnouncerTeamId}
-                      />
-                    </div>
-                    {singlesMatchmakingInProgress ? (
-                      <LiveSinglesMatchmakingAdminPanel
-                        roundId={round.id}
-                        roundName={round.name}
-                        teams={round.teams.map((t) => ({
-                          id: t.id,
-                          name: t.name,
-                          captainName: t.captain?.name ?? null,
-                          captainAccessToken: t.captainAccessToken,
-                        }))}
-                        statusLabel={singlesStatusLabel}
-                      />
-                    ) : (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-fairway-400/40 bg-fairway-50/40 p-3">
-                        <p className="text-xs text-ink-700/60">Let captains set up the singles matchups live, for everyone to watch.</p>
-                        <EnableCaptainLinksButton roundId={round.id} label="Enable Live Singles Matchmaking" />
-                      </div>
-                    )}
-                  </>
+                  <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                    <p className="mb-1 text-sm font-semibold text-ink-900">Singles Matchups (1v1)</p>
+                    <p className="mb-3 text-xs text-ink-700/50">
+                      Pairs survivors by seed within their own team&apos;s roster — best vs best, 2nd-best vs
+                      2nd-best, and so on.
+                    </p>
+                    <PairSinglesBySeedButton roundId={round.id} />
+                  </div>
                 )}
 
                 {(!championshipTeamPhaseDone || !singlesPhaseDone) && (
@@ -234,30 +205,43 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
                   </>
                 )}
               </div>
-            ) : matchmakingInProgress ? (
-              <LiveMatchmakingAdminPanel
-                roundId={round.id}
-                roundName={round.name}
-                teams={round.teams.map((t) => ({
-                  id: t.id,
-                  name: t.name,
-                  captainName: t.captain?.name ?? null,
-                  captainAccessToken: t.captainAccessToken,
-                }))}
-                statusLabel={matchmakingStatusLabel}
-              />
             ) : (
               <>
-                {livePairingMatchmakingApplies && twosomeLockState?.isComplete && !hasCaptainTokens && round.matches.length === 0 && (
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-fairway-400/40 bg-fairway-50/40 p-3">
-                    <p className="text-xs text-ink-700/60">Let captains set up the matchups live, for everyone to watch.</p>
-                    <EnableCaptainLinksButton roundId={round.id} label="Enable Live Matchmaking" />
+                {livePairingMatchmakingApplies && twosomeLockState?.isComplete && !matchmakingState?.isComplete && (
+                  <div className="mb-3 rounded-2xl border border-stone-200 bg-white p-3">
+                    <SetFirstAnnouncerField
+                      roundId={round.id}
+                      teams={round.teams.map((t) => ({ id: t.id, name: t.name }))}
+                      currentFirstAnnouncerTeamId={round.firstAnnouncerTeamId}
+                    />
                   </div>
                 )}
-                <RoundMatchCreator round={round} teams={round.teams} />
-                <div className="mt-4">
-                  <RoundMatchList matches={round.matches} />
-                </div>
+                {matchmakingInProgress ? (
+                  <LiveMatchmakingAdminPanel
+                    roundId={round.id}
+                    roundName={round.name}
+                    teams={round.teams.map((t) => ({
+                      id: t.id,
+                      name: t.name,
+                      captainName: t.captain?.name ?? null,
+                      captainAccessToken: t.captainAccessToken,
+                    }))}
+                    statusLabel={matchmakingStatusLabel}
+                  />
+                ) : (
+                  <>
+                    {livePairingMatchmakingApplies && twosomeLockState?.isComplete && !hasCaptainTokens && round.matches.length === 0 && (
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-fairway-400/40 bg-fairway-50/40 p-3">
+                        <p className="text-xs text-ink-700/60">Let captains set up the matchups live, for everyone to watch.</p>
+                        <EnableCaptainLinksButton roundId={round.id} label="Enable Live Matchmaking" />
+                      </div>
+                    )}
+                    <RoundMatchCreator round={round} teams={round.teams} />
+                    <div className="mt-4">
+                      <RoundMatchList matches={round.matches} />
+                    </div>
+                  </>
+                )}
               </>
             )}
           </section>

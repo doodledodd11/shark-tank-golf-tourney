@@ -27,6 +27,13 @@ function optionalFloat(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function optionalSeed(value: FormDataEntryValue | null): number | null {
+  const s = value == null ? "" : String(value).trim();
+  if (s === "") return null;
+  const n = Math.trunc(Number(s));
+  return Number.isFinite(n) && n >= 1 && n <= 8 ? n : null;
+}
+
 const createSchema = z.object({
   tournamentId: z.string().min(1),
   name: z.string().trim().min(1, "Name is required"),
@@ -46,6 +53,7 @@ export async function createPlayer(_prevState: FormState, formData: FormData): P
       tournamentId: parsed.data.tournamentId,
       name: parsed.data.name,
       tier: parsed.data.tier,
+      seed: optionalSeed(formData.get("seed")),
       hometown: optionalText(formData.get("hometown")),
       handicapIndex: optionalFloat(formData.get("handicapIndex")),
       email: optionalText(formData.get("email")),
@@ -83,6 +91,7 @@ export async function updatePlayer(_prevState: FormState, formData: FormData): P
     data: {
       name: parsed.data.name,
       tier: parsed.data.tier,
+      seed: optionalSeed(formData.get("seed")),
       status: parsed.data.status,
       eliminatedRound: eliminatedRound != null ? Math.trunc(eliminatedRound) : null,
       hometown: optionalText(formData.get("hometown")),

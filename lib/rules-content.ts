@@ -8,12 +8,12 @@ export interface HowItWorksStep {
 
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
-    title: "Four skill tiers",
-    body: "All 32 players are ranked into four tiers of eight. Tiers are a guide for building a balanced roster, not a requirement. There are no handicap strokes during matches, so the draft is what levels the field.",
+    title: "Four skill tiers, seeded within each",
+    body: "All 32 players are ranked into four tiers of eight, and seeded 1-8 within their own tier from GHIN/handicap data. Tiers are a guide for building a balanced roster, not a requirement. There are no handicap strokes during matches, so the draft is what levels the field.",
   },
   {
     title: "Captains draft their own teams",
-    body: "Picks run as a snake draft: the first captain picks once, then the other captain picks twice in a row, then it goes back to picking twice in a row, and so on — the standard way to even out the advantage of picking first. Either captain can choose any undrafted player from any tier. Tier counts are shown as a recommended target for balance, but a captain can lean into a tier that's proving itself.",
+    body: "The worse-seeded captain (lowest tier, then highest seed within it) picks first. If the two captains are in different tiers, each is also automatically seated with one bonus teammate: whoever holds their own seed number in the other captain's tier. From there, picks run as a snake: the first captain picks once (any tier), the other captain then mirrors that exact tier for their reply, then it's a free pick again, mirrored again, and so on — the standard way to even out the advantage of picking first while still keeping both rosters balanced across tiers.",
   },
   {
     title: "Teams privately build twosomes",
@@ -37,6 +37,6 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
   {
     title: "Final 8 play a 4v4 championship",
-    body: "The last 8 players split into two 4-man teams for a two-round championship: team matches, then singles.",
+    body: "The last 8 players split into two 4-man teams for a two-round championship: two 2v2 team matches (drawn at random from each team's locked twosomes), then four 1v1 singles matches, paired by seed rank within each team's own roster — best vs best, 2nd-best vs 2nd-best, and so on.",
   },
 ];

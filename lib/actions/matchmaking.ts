@@ -15,14 +15,11 @@ import {
   respondToPairingLogic,
   cancelMatchmakingLogic,
   randomizeChampionshipTeamMatchupsLogic,
-  getSinglesMatchmakingBoardData,
-  announceSinglesLogic,
-  respondToSinglesLogic,
+  pairSinglesBySeedLogic,
   cancelSinglesMatchmakingLogic,
   type FormState,
   type TwosomeLockBoardData,
   type MatchmakingBoardData,
-  type SinglesMatchmakingBoardData,
 } from "@/lib/matchmaking";
 
 function revalidateAll() {
@@ -67,6 +64,13 @@ export async function randomizeChampionshipTeamMatchups(roundId: string): Promis
 export async function cancelSinglesMatchmaking(roundId: string): Promise<FormState> {
   await requireAdminSession();
   const result = await cancelSinglesMatchmakingLogic(roundId);
+  if (result.success) revalidateAll();
+  return result;
+}
+
+export async function pairSinglesBySeed(roundId: string): Promise<FormState> {
+  await requireAdminSession();
+  const result = await pairSinglesBySeedLogic(roundId);
   if (result.success) revalidateAll();
   return result;
 }
@@ -127,30 +131,6 @@ export async function announcePairing(input: { roundId: string; captainToken: st
 export async function respondToPairing(input: { roundId: string; captainToken: string; pairingId: string }): Promise<FormState> {
   const data = pairingActionSchema.parse(input);
   const result = await respondToPairingLogic(data);
-  if (result.success) revalidateAll();
-  return result;
-}
-
-export async function getSinglesMatchmakingBoard(roundId: string, captainToken?: string | null): Promise<SinglesMatchmakingBoardData | null> {
-  return getSinglesMatchmakingBoardData(roundId, captainToken);
-}
-
-const singlesActionSchema = z.object({
-  roundId: z.string().min(1),
-  captainToken: z.string().min(1),
-  playerId: z.string().min(1),
-});
-
-export async function announceSingles(input: { roundId: string; captainToken: string; playerId: string }): Promise<FormState> {
-  const data = singlesActionSchema.parse(input);
-  const result = await announceSinglesLogic(data);
-  if (result.success) revalidateAll();
-  return result;
-}
-
-export async function respondToSingles(input: { roundId: string; captainToken: string; playerId: string }): Promise<FormState> {
-  const data = singlesActionSchema.parse(input);
-  const result = await respondToSinglesLogic(data);
   if (result.success) revalidateAll();
   return result;
 }

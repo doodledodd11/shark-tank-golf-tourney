@@ -14,9 +14,7 @@ import {
   respondToPairingLogic,
   cancelMatchmakingLogic,
   randomizeChampionshipTeamMatchupsLogic,
-  getSinglesMatchmakingBoardData,
-  announceSinglesLogic,
-  respondToSinglesLogic,
+  pairSinglesBySeedLogic,
   cancelSinglesMatchmakingLogic,
 } from "@/lib/matchmaking";
 
@@ -282,6 +280,23 @@ describe("live matchmaking", () => {
     expect(board!.isComplete).toBe(true);
   });
 
+  it("lets an admin override who announces first", async () => {
+    const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4);
+    await ensureCaptainAccessTokensLogic(round.id);
+    const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
+    await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
+    await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
+
+    const before = await getMatchmakingBoardData(round.id);
+    expect(before!.onTheClockTeamId).toBe(teamA.id); // default: team order 0 announces first
+
+    const setResult = await setFirstAnnouncerLogic(round.id, teamB.id);
+    expect(setResult.success).toBe(true);
+
+    const after = await getMatchmakingBoardData(round.id);
+    expect(after!.onTheClockTeamId).toBe(teamB.id);
+  });
+
   it("refuses an announcement out of turn, and a response before anything's announced", async () => {
     const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4);
     await ensureCaptainAccessTokensLogic(round.id);
@@ -368,54 +383,49 @@ describe("championship: random team matchups + singles matchmaking", () => {
     expect(result.error).toBeTruthy();
   });
 
-  it("runs singles matchmaking over individual players once the team matches exist, and lets an admin set who announces first", async () => {
+  it("pairs singles by seed rank within each team's own roster", async () => {
     const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
     await ensureCaptainAccessTokensLogic(round.id);
     const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
     await lockAllTwosomes(round.id, teamA.id, tA!.captainAccessToken!, teamAPlayers);
     await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
-    await randomizeChampionshipTeamMatchupsLogic(round.id); // 2 team matches now exist
+    await randomizeChampionshipTeamMatchupsLogic(round.id); // 2 team matches now exist; shouldn't affect singles eligibility
 
-    // Override the default: Team B should announce first, not Team A.
-    const setResult = await setFirstAnnouncerLogic(round.id, teamB.id);
-    expect(setResult.success).toBe(true);
+    // Scramble each side's seed relative to roster/creation order, to prove
+    // the pairing follows seed rank, not array position.
+    await prisma.player.update({ where: { id: teamAPlayers[0]!.id }, data: { seed: 4 } });
+    await prisma.player.update({ where: { id: teamAPlayers[1]!.id }, data: { seed: 1 } });
+    await prisma.player.update({ where: { id: teamAPlayers[2]!.id }, data: { seed: 3 } });
+    await prisma.player.update({ where: { id: teamAPlayers[3]!.id }, data: { seed: 2 } });
+    await prisma.player.update({ where: { id: teamBPlayers[0]!.id }, data: { seed: 2 } });
+    await prisma.player.update({ where: { id: teamBPlayers[1]!.id }, data: { seed: 4 } });
+    await prisma.player.update({ where: { id: teamBPlayers[2]!.id }, data: { seed: 1 } });
+    await prisma.player.update({ where: { id: teamBPlayers[3]!.id }, data: { seed: 3 } });
 
-    const board1 = await getSinglesMatchmakingBoardData(round.id);
-    expect(board1!.phase).toBe("ANNOUNCE");
-    expect(board1!.onTheClockTeamId).toBe(teamB.id);
-    // All 8 players are still eligible for singles — the team matches don't count against them.
-    expect(board1!.players).toHaveLength(8);
-    expect(board1!.players.every((p) => !p.opponentPlayerId)).toBe(true);
+    const result = await pairSinglesBySeedLogic(round.id);
+    expect(result.success).toBe(true);
 
-    const announce1 = await announceSinglesLogic({ roundId: round.id, captainToken: tB!.captainAccessToken!, playerId: teamBPlayers[0]!.id });
-    expect(announce1.success).toBe(true);
-
-    const board2 = await getSinglesMatchmakingBoardData(round.id);
-    expect(board2!.phase).toBe("RESPOND");
-    expect(board2!.onTheClockTeamId).toBe(teamA.id);
-    expect(board2!.announcedPlayerId).toBe(teamBPlayers[0]!.id);
-
-    const respond1 = await respondToSinglesLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, playerId: teamAPlayers[0]!.id });
-    expect(respond1.success).toBe(true);
-
-    const singlesMatch = await prisma.match.findFirstOrThrow({
+    const singlesMatches = await prisma.match.findMany({
       where: { roundId: round.id, pairingAId: null, pairingBId: null, isPlayoff: false },
       include: { participants: true, segments: true },
     });
-    expect(singlesMatch.participants.map((p) => p.playerId).sort()).toEqual([teamAPlayers[0]!.id, teamBPlayers[0]!.id].sort());
-    expect(singlesMatch.segments.map((s) => s.name)).toEqual(["Singles Match"]);
+    expect(singlesMatches).toHaveLength(4);
+    expect(singlesMatches[0]!.segments.map((s) => s.name)).toEqual(["Singles Match"]);
 
-    // That player no longer shows up as available in either the singles
-    // board or the team-match board (they're each still on their team's
-    // roster overall, just already spoken for in singles).
-    const board3 = await getSinglesMatchmakingBoardData(round.id);
-    expect(board3!.players.find((p) => p.id === teamBPlayers[0]!.id)!.opponentPlayerId).toBe(teamAPlayers[0]!.id);
+    // Best (seed 1) vs best: teamAPlayers[1] should face teamBPlayers[2].
+    const bestVsBest = singlesMatches.find((m) => m.participants.some((p) => p.playerId === teamAPlayers[1]!.id))!;
+    expect(bestVsBest.participants.map((p) => p.playerId).sort()).toEqual([teamAPlayers[1]!.id, teamBPlayers[2]!.id].sort());
+
+    // Worst (seed 4) vs worst: teamAPlayers[0] should face teamBPlayers[1].
+    const worstVsWorst = singlesMatches.find((m) => m.participants.some((p) => p.playerId === teamAPlayers[0]!.id))!;
+    expect(worstVsWorst.participants.map((p) => p.playerId).sort()).toEqual([teamAPlayers[0]!.id, teamBPlayers[1]!.id].sort());
+
+    // Every player is used exactly once.
+    const usedPlayerIds = singlesMatches.flatMap((m) => m.participants.map((p) => p.playerId));
+    expect(new Set(usedPlayerIds).size).toBe(8);
   }, 30_000);
 
-  it("auto-builds the final singles match once only one player per team is left", async () => {
-    // 4 players/team = 4 singles matches needed total. Team 2v2 matches
-    // don't count against singles eligibility (see board1's assertion in
-    // the test above), so all 8 stay eligible regardless.
+  it("falls back to a deterministic pairing when seeds aren't set", async () => {
     const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
     await ensureCaptainAccessTokensLogic(round.id);
     const [tA, tB] = await prisma.team.findMany({ where: { roundId: round.id }, orderBy: { order: "asc" } });
@@ -423,29 +433,17 @@ describe("championship: random team matchups + singles matchmaking", () => {
     await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
     await randomizeChampionshipTeamMatchupsLogic(round.id);
 
-    // Three manual announce/respond cycles, alternating who announces.
-    for (let i = 0; i < 3; i++) {
-      const board = await getSinglesMatchmakingBoardData(round.id);
-      expect(board!.isComplete).toBe(false);
-      const announcerToken = board!.onTheClockTeamId === teamA.id ? tA!.captainAccessToken! : tB!.captainAccessToken!;
-      const announcePlayer = board!.players.find((p) => p.teamId === board!.onTheClockTeamId && !p.opponentPlayerId)!;
-      await announceSinglesLogic({ roundId: round.id, captainToken: announcerToken, playerId: announcePlayer.id });
+    const result = await pairSinglesBySeedLogic(round.id);
+    expect(result.success).toBe(true);
 
-      const boardAfterAnnounce = await getSinglesMatchmakingBoardData(round.id);
-      const responderToken = boardAfterAnnounce!.onTheClockTeamId === teamA.id ? tA!.captainAccessToken! : tB!.captainAccessToken!;
-      const responsePlayer = boardAfterAnnounce!.players.find(
-        (p) => p.teamId === boardAfterAnnounce!.onTheClockTeamId && !p.opponentPlayerId,
-      )!;
-      const result = await respondToSinglesLogic({ roundId: round.id, captainToken: responderToken, playerId: responsePlayer.id });
-      expect(result.success).toBe(true);
-    }
-
-    // 3 manual cycles = 3 matches built by hand; that leaves exactly one
-    // player per team, which should already be auto-matched by now.
-    const finalBoard = await getSinglesMatchmakingBoardData(round.id);
-    expect(finalBoard!.isComplete).toBe(true);
-    expect(await prisma.match.count({ where: { roundId: round.id, pairingAId: null, pairingBId: null, isPlayoff: false } })).toBe(4);
-  }, 30_000);
+    const singlesMatches = await prisma.match.findMany({
+      where: { roundId: round.id, pairingAId: null, pairingBId: null, isPlayoff: false },
+      include: { participants: true },
+    });
+    expect(singlesMatches).toHaveLength(4);
+    const usedPlayerIds = singlesMatches.flatMap((m) => m.participants.map((p) => p.playerId));
+    expect(new Set(usedPlayerIds).size).toBe(8);
+  });
 
   it("cancelSinglesMatchmakingLogic removes only the singles matches, leaving the team matches alone", async () => {
     const { round, teamA, teamB, teamAPlayers, teamBPlayers } = await makeRosteredRound(4, 3);
@@ -455,16 +453,11 @@ describe("championship: random team matchups + singles matchmaking", () => {
     await lockAllTwosomes(round.id, teamB.id, tB!.captainAccessToken!, teamBPlayers);
     await randomizeChampionshipTeamMatchupsLogic(round.id);
 
-    await announceSinglesLogic({ roundId: round.id, captainToken: tA!.captainAccessToken!, playerId: teamAPlayers[0]!.id });
-    await respondToSinglesLogic({ roundId: round.id, captainToken: tB!.captainAccessToken!, playerId: teamBPlayers[0]!.id });
-    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(3); // 2 team + 1 singles
+    await pairSinglesBySeedLogic(round.id);
+    expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(6); // 2 team + 4 singles
 
     const result = await cancelSinglesMatchmakingLogic(round.id);
     expect(result.success).toBe(true);
     expect(await prisma.match.count({ where: { roundId: round.id } })).toBe(2); // team matches survive
-
-    const board = await getSinglesMatchmakingBoardData(round.id);
-    expect(board!.phase).toBe("ANNOUNCE");
-    expect(board!.players.every((p) => !p.announced && !p.opponentPlayerId)).toBe(true);
   });
 });

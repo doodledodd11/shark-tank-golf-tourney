@@ -461,15 +461,15 @@ export async function cancelMatchmakingLogic(roundId: string): Promise<FormState
 }
 
 // --------------------------------------------------------------------------
-// Championship-only: random team matchups, then singles matchmaking.
+// Championship-only: random team matchups, then seed-paired singles.
 //
 // The championship still splits into two 4-player teams and builds two
 // 2v2 twosomes each (see twosomeLockApplies above), but its rules don't
 // call for a live announce/respond ritual over just two matches — the
-// site's spec has the team matchups drawn randomly instead. Singles,
-// though, go through the same live announce/respond mechanic as Round
-// 1/2's twosomes, just one player at a time instead of a pair — see
-// TeamMembership.announced, the singles equivalent of Pairing.announced.
+// site's spec has the team matchups drawn randomly instead. Singles are
+// paired by seed rank within each team's own roster (best vs best,
+// 2nd-best vs 2nd-best, ...) rather than captains choosing — see
+// pairSinglesBySeedLogic.
 // --------------------------------------------------------------------------
 
 /** Randomly pairs up each team's still-unmatched locked twosomes into
@@ -535,105 +535,8 @@ function unmatchedSinglesPlayers(round: RoundWithDetails) {
   return round.teams.flatMap((t) =>
     t.memberships
       .filter((m) => !singlesMatchedPlayerIds.has(m.playerId))
-      .map((m) => ({ id: m.playerId, teamId: t.id, name: m.player.name, announced: m.announced })),
+      .map((m) => ({ id: m.playerId, teamId: t.id, name: m.player.name, tier: m.player.tier, seed: m.player.seed })),
   );
-}
-
-function singlesMatchesBuiltCount(round: RoundWithDetails): number {
-  return round.matches.filter((m) => !m.pairingAId && !m.pairingBId && !m.isPlayoff).length;
-}
-
-export interface SinglesMatchmakingPlayerSummary {
-  id: string;
-  teamId: string;
-  name: string;
-  tier: number;
-  announced: boolean;
-  opponentPlayerId: string | null;
-}
-
-export interface SinglesMatchmakingBoardData {
-  round: { id: string; name: string; number: number };
-  teams: { id: string; name: string; order: number }[];
-  players: SinglesMatchmakingPlayerSummary[];
-  phase: "ANNOUNCE" | "RESPOND" | null;
-  onTheClockTeamId: string | null;
-  announcedPlayerId: string | null;
-  isComplete: boolean;
-  myTeamId: string | null;
-}
-
-export async function getSinglesMatchmakingBoardData(roundId: string, captainToken?: string | null): Promise<SinglesMatchmakingBoardData | null> {
-  const round = await getRoundWithDetails(roundId);
-  if (!round) return null;
-  if (round.number !== 3 || round.teams.length !== 2) return null;
-
-  const teams = toMatchmakingTeams(round);
-  const unmatched = unmatchedSinglesPlayers(round);
-  const state = computeMatchmakingState(
-    teams,
-    unmatched.map((p) => ({ id: p.id, teamId: p.teamId, announced: p.announced })),
-    singlesMatchesBuiltCount(round),
-    round.firstAnnouncerTeamId,
-  );
-
-  const opponentByPlayer = new Map<string, string>();
-  for (const m of round.matches) {
-    if (!m.pairingAId && !m.pairingBId && !m.isPlayoff && m.participants.length === 2) {
-      const [p1, p2] = m.participants;
-      opponentByPlayer.set(p1!.playerId, p2!.playerId);
-      opponentByPlayer.set(p2!.playerId, p1!.playerId);
-    }
-  }
-
-  const myTeam = captainToken ? round.teams.find((t) => t.captainAccessToken === captainToken) : undefined;
-
-  return {
-    round: { id: round.id, name: round.name, number: round.number },
-    teams: round.teams.map((t) => ({ id: t.id, name: t.name, order: t.order })),
-    players: round.teams.flatMap((t) =>
-      t.memberships.map((m) => ({
-        id: m.playerId,
-        teamId: t.id,
-        name: m.player.name,
-        tier: m.player.tier,
-        announced: m.announced,
-        opponentPlayerId: opponentByPlayer.get(m.playerId) ?? null,
-      })),
-    ),
-    phase: state.phase,
-    onTheClockTeamId: state.onTheClockTeamId,
-    announcedPlayerId: state.announcedPairingId,
-    isComplete: state.isComplete,
-    myTeamId: myTeam?.id ?? null,
-  };
-}
-
-export async function announceSinglesLogic(input: { roundId: string; captainToken: string; playerId: string }): Promise<FormState> {
-  const round = await getRoundWithDetails(input.roundId);
-  if (!round) return { error: "Round not found." };
-  if (round.number !== 3) return { error: "Singles matchmaking is only for the championship." };
-  const myTeam = round.teams.find((t) => t.captainAccessToken === input.captainToken);
-  if (!myTeam) return { error: "That link isn't valid." };
-
-  const teams = toMatchmakingTeams(round);
-  const unmatched = unmatchedSinglesPlayers(round);
-  const state = computeMatchmakingState(
-    teams,
-    unmatched.map((p) => ({ id: p.id, teamId: p.teamId, announced: p.announced })),
-    singlesMatchesBuiltCount(round),
-    round.firstAnnouncerTeamId,
-  );
-
-  if (state.isComplete) return { error: "Every player already has an opponent." };
-  if (state.phase !== "ANNOUNCE") return { error: "A player has already been announced — waiting on a response." };
-  if (state.onTheClockTeamId !== myTeam.id) return { error: "It isn't your turn to announce." };
-
-  const player = unmatched.find((p) => p.id === input.playerId && p.teamId === myTeam.id);
-  if (!player) return { error: "That player isn't yours to announce, or they're already matched." };
-
-  await prisma.teamMembership.updateMany({ where: { teamId: myTeam.id, playerId: player.id }, data: { announced: true } });
-  return { success: true };
 }
 
 function singlesMatchCreateData(input: {
@@ -660,74 +563,59 @@ function singlesMatchCreateData(input: {
   };
 }
 
-export async function respondToSinglesLogic(input: { roundId: string; captainToken: string; playerId: string }): Promise<FormState> {
-  const round = await getRoundWithDetails(input.roundId);
+/** Best-to-worst ordering within a team's own roster: tier first (lower
+ * tier number is better), then seed within a tier (lower is better), with
+ * anyone missing a seed sorted after everyone who has one, and name as a
+ * final tiebreak so the order is always deterministic. */
+function bySeedRank(a: { tier: number; seed: number | null; name: string }, b: typeof a): number {
+  if (a.tier !== b.tier) return a.tier - b.tier;
+  if (a.seed != null && b.seed != null && a.seed !== b.seed) return a.seed - b.seed;
+  if (a.seed == null && b.seed != null) return 1;
+  if (a.seed != null && b.seed == null) return -1;
+  return a.name.localeCompare(b.name);
+}
+
+/** Pairs every unmatched singles player by seed rank within their own
+ * team's roster — team A's best remaining player vs team B's best
+ * remaining, 2nd-best vs 2nd-best, and so on — instead of a live
+ * announce/respond ritual. Falls back to (tier, then name) ordering for
+ * anyone without a seed set, so it still produces a sensible pairing even
+ * before every player has one. */
+export async function pairSinglesBySeedLogic(roundId: string): Promise<FormState> {
+  const round = await getRoundWithDetails(roundId);
   if (!round) return { error: "Round not found." };
-  if (round.number !== 3) return { error: "Singles matchmaking is only for the championship." };
-  const myTeam = round.teams.find((t) => t.captainAccessToken === input.captainToken);
-  if (!myTeam) return { error: "That link isn't valid." };
-
-  const teams = toMatchmakingTeams(round);
-  const unmatched = unmatchedSinglesPlayers(round);
-  const state = computeMatchmakingState(
-    teams,
-    unmatched.map((p) => ({ id: p.id, teamId: p.teamId, announced: p.announced })),
-    singlesMatchesBuiltCount(round),
-    round.firstAnnouncerTeamId,
-  );
-
-  if (state.phase !== "RESPOND") return { error: "There's no pending announcement to respond to." };
-  if (state.onTheClockTeamId !== myTeam.id) return { error: "It isn't your turn to respond." };
-
-  const responder = unmatched.find((p) => p.id === input.playerId && p.teamId === myTeam.id);
-  if (!responder) return { error: "That player isn't yours to offer, or they're already matched." };
-  const announced = unmatched.find((p) => p.id === state.announcedPairingId);
-  if (!announced) return { error: "The announced player couldn't be found." };
+  if (round.number !== 3) return { error: "Seed pairing is only for the championship's singles matches." };
+  if (round.teams.length !== 2) return { error: "This round needs two teams first." };
 
   const teamAId = round.teams[0]!.id;
   const teamBId = round.teams[1]!.id;
-  const sideAPlayer = announced.teamId === teamAId ? announced : responder;
-  const sideBPlayer = announced.teamId === teamAId ? responder : announced;
+  const unmatched = unmatchedSinglesPlayers(round);
+  const teamAPlayers = [...unmatched.filter((p) => p.teamId === teamAId)].sort(bySeedRank);
+  const teamBPlayers = [...unmatched.filter((p) => p.teamId === teamBId)].sort(bySeedRank);
+  if (teamAPlayers.length === 0 || teamAPlayers.length !== teamBPlayers.length) {
+    return { error: "Both teams need the same number of unmatched players before pairing by seed." };
+  }
 
-  // If that leaves exactly one player per team, they can only play each
-  // other — auto-build that final singles match too instead of making the
-  // captains go through announce/respond for a pairing that isn't a real
-  // choice.
-  const remaining = unmatched.filter((p) => p.id !== sideAPlayer.id && p.id !== sideBPlayer.id);
-  const remainingA = remaining.find((p) => p.teamId === teamAId);
-  const remainingB = remaining.find((p) => p.teamId === teamBId);
+  const baseMatchNumber = round.matches.length;
 
-  await prisma.$transaction([
-    prisma.match.create({
-      data: singlesMatchCreateData({
-        roundId: input.roundId,
-        matchNumber: round.matches.length + 1,
-        teamAId,
-        teamBId,
-        sideAPlayerId: sideAPlayer.id,
-        sideBPlayerId: sideBPlayer.id,
+  await prisma.$transaction(
+    teamAPlayers.map((playerA, i) =>
+      prisma.match.create({
+        data: singlesMatchCreateData({
+          roundId,
+          matchNumber: baseMatchNumber + i + 1,
+          teamAId,
+          teamBId,
+          sideAPlayerId: playerA.id,
+          sideBPlayerId: teamBPlayers[i]!.id,
+        }),
       }),
-    }),
-    prisma.teamMembership.updateMany({ where: { teamId: announced.teamId, playerId: announced.id }, data: { announced: false } }),
-    ...(remaining.length === 2 && remainingA && remainingB
-      ? [
-          prisma.match.create({
-            data: singlesMatchCreateData({
-              roundId: input.roundId,
-              matchNumber: round.matches.length + 2,
-              teamAId,
-              teamBId,
-              sideAPlayerId: remainingA.id,
-              sideBPlayerId: remainingB.id,
-            }),
-          }),
-        ]
-      : []),
-  ]);
+    ),
+  );
   return { success: true };
 }
 
-/** Deletes every singles match this flow has built, for a redo — mirrors
+/** Deletes every singles match built so far, for a redo — mirrors
  * cancelMatchmakingLogic but scoped to just the singles matches (leaving
  * the round's 2v2 team matches, if any, untouched). */
 export async function cancelSinglesMatchmakingLogic(roundId: string): Promise<FormState> {
@@ -738,9 +626,6 @@ export async function cancelSinglesMatchmakingLogic(roundId: string): Promise<Fo
   const singlesMatchIds = round.matches.filter((m) => !m.pairingAId && !m.pairingBId && !m.isPlayoff).map((m) => m.id);
   if (singlesMatchIds.length === 0) return { error: "There's no singles matchmaking in progress to cancel." };
 
-  await prisma.$transaction([
-    prisma.match.deleteMany({ where: { id: { in: singlesMatchIds } } }),
-    prisma.teamMembership.updateMany({ where: { team: { roundId } }, data: { announced: false } }),
-  ]);
+  await prisma.match.deleteMany({ where: { id: { in: singlesMatchIds } } });
   return { success: true };
 }

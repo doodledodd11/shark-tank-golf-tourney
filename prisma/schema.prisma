@@ -89,6 +89,12 @@ model Player {
 
   name          String
   tier          Int // 1 (top) - 4
+  // Rank within the player's own tier (1 = best in that tier), from GHIN/
+  // handicap-based seeding — e.g. tier 1 seed 1 is "A1". Optional: only
+  // used by the draft's cross-tier auto-partner assignment and "worse
+  // seed picks first" ordering, both of which fall back to admin-chosen
+  // behavior when a captain's seed isn't set.
+  seed          Int?
   handicapIndex Float? // informational only — never used for match strokes
   hometown      String?
   avatarUrl     String?
@@ -214,11 +220,12 @@ model TeamMembership {
   playerId String
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  // Same idea as Pairing.announced, one level down: the championship's
-  // singles matchmaking announces individual players instead of twosomes,
-  // and a player's TeamMembership row (round + team scoped already) is
-  // where that in-flight state naturally lives.
-  announced Boolean @default(false)
+  // True for a team's captain (and, when the draft's cross-tier
+  // auto-partner rule fires, that one auto-assigned partner) — every other
+  // row is a real drafted pick. Draft turn/tier-mirroring logic reads the
+  // *real* picks in createdAt order, so this is what tells it which rows
+  // to skip; see computeDraftState in lib/draft-logic.ts.
+  autoSeated Boolean @default(false)
 
   createdAt DateTime @default(now())
 

@@ -22,7 +22,7 @@ export function AddPlayerForm({ tournamentId }: { tournamentId: string }) {
         Add Player
       </p>
       <input type="hidden" name="tournamentId" value={tournamentId} />
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6">
         <div className="sm:col-span-2">
           <Field label="Name" htmlFor="new-name">
             <input id="new-name" name="name" required className={inputClass} placeholder="Player 33" />
@@ -36,6 +36,9 @@ export function AddPlayerForm({ tournamentId }: { tournamentId: string }) {
               </option>
             ))}
           </select>
+        </Field>
+        <Field label="Seed" htmlFor="new-seed">
+          <input id="new-seed" name="seed" type="number" min={1} max={8} className={inputClass} placeholder="1-8" />
         </Field>
         <Field label="Hometown" htmlFor="new-hometown">
           <input id="new-hometown" name="hometown" className={inputClass} />

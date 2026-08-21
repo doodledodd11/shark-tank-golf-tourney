@@ -49,6 +49,10 @@ export function RoundSetupChoice({ roundId, eligiblePlayers }: { roundId: string
       <p className="font-semibold text-ink-950">Start Live Draft</p>
       <p className="mt-1 text-sm text-ink-700/60">
         Pick each team&apos;s captain. They draft the rest live, using their own link. Nobody else needs an account.
+        Whoever&apos;s worse-seeded picks first automatically (tier first, then seed within it) — the site sorts
+        that out regardless of which one you list here. If the two are in different tiers, each also gets one
+        bonus teammate seated automatically: the player at their own seed number, from the other captain&apos;s
+        tier.
       </p>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
@@ -57,7 +61,8 @@ export function RoundSetupChoice({ roundId, eligiblePlayers }: { roundId: string
             <option value="">Select a player</option>
             {eligiblePlayers.map((p) => (
               <option key={p.id} value={p.id} disabled={p.id === captainB}>
-                {p.name} (Tier {p.tier})
+                {p.name} (Tier {p.tier}
+                {p.seed != null ? `, Seed ${p.seed}` : ""})
               </option>
             ))}
           </select>
@@ -68,7 +73,8 @@ export function RoundSetupChoice({ roundId, eligiblePlayers }: { roundId: string
             <option value="">Select a player</option>
             {eligiblePlayers.map((p) => (
               <option key={p.id} value={p.id} disabled={p.id === captainA}>
-                {p.name} (Tier {p.tier})
+                {p.name} (Tier {p.tier}
+                {p.seed != null ? `, Seed ${p.seed}` : ""})
               </option>
             ))}
           </select>

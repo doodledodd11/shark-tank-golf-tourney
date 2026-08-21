@@ -5,12 +5,12 @@
 // could (a failed request, a retried pick, an admin manual fix — none of
 // those can leave the turn indicator lying about who's on the clock).
 //
-// Picks are NOT locked to a single "current tier" in order, and tiers are
-// NOT a hard cap either — a captain can take any undrafted player from any
-// tier at any point on their turn, even one their team has already taken
-// plenty from. Tier counts are shown to captains purely as a recommended
-// target for a balanced roster; nothing server-side enforces them. Only the
-// total roster size per team is a real constraint.
+// The draft runs as a snake, and every *second* pick in that snake ("the
+// mirror pick" — see isMirrorPickIndex) is tier-locked to whatever tier the
+// pick right before it came from; every other pick is free (any tier, no
+// cap). That's the one real constraint — a captain can still take as many
+// players from a tier as they want on a free pick, tier counts shown
+// elsewhere are still just a recommended balance target.
 
 export interface DraftTeam {
   id: string;
@@ -22,9 +22,21 @@ export interface DraftPlayer {
   tier: number;
 }
 
+/** One real pick, in the order it happened. Auto-seated captains (and any
+ * auto-assigned cross-tier partner — see startDraftLogic) are NOT picks for
+ * this purpose; only what a captain actually chose counts toward the snake
+ * sequence and the tier-mirror rule. */
+export interface DraftPickRecord {
+  tier: number;
+}
+
 export interface DraftState {
   /** Team id whose pick it is, or null once the draft is complete. */
   onTheClockTeamId: string | null;
+  /** The tier the next pick must come from, or null if it's free (either
+   * because it's not a mirror-pick slot, or the mirrored tier has already
+   * run out of eligible players — see computeDraftState). */
+  requiredTier: number | null;
   /** Recommended (not enforced) players per tier for a balanced roster — round.playersStart / 8. */
   recommendedPicksPerTier: number;
   isComplete: boolean;
@@ -54,8 +66,7 @@ export function recommendedRemainingByTier(
 }
 
 /**
- * Snake-draft position: index 0 (the very first real pick, after both
- * captains are auto-seated as pick zero — see startDraftLogic) goes to the
+ * Snake-draft position: index 0 (the very first real pick) goes to the
  * order-0 team; from then on, picks come in pairs — index 1-2 to the
  * order-1 team, 3-4 back to order-0, 5-6 to order-1, and so on. That gives
  * whoever picks second a two-pick "makeup" right after whoever picked
@@ -68,17 +79,31 @@ function snakeTeamAtIndex(index: number, teamX: DraftTeam, teamY: DraftTeam): Dr
   return block % 2 === 0 ? teamY : teamX;
 }
 
+/** Every *odd* pick index is a "mirror" of the pick right before it — pick 0
+ * is free, pick 1 mirrors pick 0's tier, pick 2 is free again (a new
+ * exchange), pick 3 mirrors pick 2's tier, and so on. This is independent
+ * of snakeTeamAtIndex's team-pairing (which groups picks differently, by
+ * who's on the clock) — a mirror pick and its leader are always made by
+ * different teams, since consecutive same-team picks in the snake only
+ * happen at even/odd-straddling boundaries. */
+function isMirrorPickIndex(index: number): boolean {
+  return index > 0 && index % 2 === 1;
+}
+
 /**
  * Figures out the current state of a round's live draft from its actual
  * roster (`rosterPlayerIds` per team) against the pool of players eligible
- * for the round. `playersStart` drives each team's total roster size and
+ * for the round, plus the chronological list of real picks made so far
+ * (`picksInOrder` — excludes auto-seated captains/partners; see
+ * DraftPickRecord). `playersStart` drives each team's total roster size and
  * the recommended per-tier target (32 -> 4, 16 -> 2, 8 -> 1 — see the Draft
  * Rules on /rules); the total is a real constraint, the per-tier split is
- * advisory only.
+ * only enforced on mirror picks (see requiredTier).
  */
 export function computeDraftState(
   teams: [DraftTeam, DraftTeam],
   rosterPlayerIdsByTeam: Record<string, string[]>,
+  picksInOrder: DraftPickRecord[],
   eligiblePlayers: DraftPlayer[],
   playersStart: number,
 ): DraftState {
@@ -89,17 +114,15 @@ export function computeDraftState(
   const yMade = (rosterPlayerIdsByTeam[teamY.id] ?? []).length;
 
   if (xMade >= totalPicksPerTeam && yMade >= totalPicksPerTeam) {
-    return { onTheClockTeamId: null, recommendedPicksPerTier, isComplete: true };
+    return { onTheClockTeamId: null, requiredTier: null, recommendedPicksPerTier, isComplete: true };
   }
 
-  // Both captains are seated as their team's pick zero before any real
-  // picking happens, so the snake sequence only covers what's made since —
-  // xMade/yMade each start at 1, hence the -1s below. Driven off the total
-  // rather than either team's own count since the snake schedule isn't
-  // "whoever's behind goes next" — a team can legitimately be two picks
-  // ahead mid-sequence and still be correct.
-  const picksIntoSequence = xMade - 1 + (yMade - 1);
-  let onTheClock = snakeTeamAtIndex(picksIntoSequence, teamX, teamY);
+  // Driven off how many real picks have happened, not raw roster size —
+  // robust to a team starting with either 1 (captain only) or 2 (captain +
+  // auto-assigned cross-tier partner) auto-seated members, since those
+  // never appear in picksInOrder either way.
+  const index = picksInOrder.length;
+  let onTheClock = snakeTeamAtIndex(index, teamX, teamY);
   // A team that's already filled its roster is skipped even if the
   // schedule would otherwise point back to it (shouldn't happen from
   // normal captain-driven play, but keeps this correct if a roster ever
@@ -107,7 +130,19 @@ export function computeDraftState(
   if (onTheClock.id === teamX.id && xMade >= totalPicksPerTeam) onTheClock = teamY;
   else if (onTheClock.id === teamY.id && yMade >= totalPicksPerTeam) onTheClock = teamX;
 
-  return { onTheClockTeamId: onTheClock.id, recommendedPicksPerTier, isComplete: false };
+  let requiredTier: number | null = null;
+  if (isMirrorPickIndex(index)) {
+    const mirroredTier = picksInOrder[index - 1]?.tier ?? null;
+    if (mirroredTier != null) {
+      // If the mirrored tier has already run dry, don't deadlock the
+      // draft over it — fall back to a free pick instead.
+      const draftedIds = new Set([...(rosterPlayerIdsByTeam[teamX.id] ?? []), ...(rosterPlayerIdsByTeam[teamY.id] ?? [])]);
+      const tierStillOpen = eligiblePlayers.some((p) => p.tier === mirroredTier && !draftedIds.has(p.id));
+      if (tierStillOpen) requiredTier = mirroredTier;
+    }
+  }
+
+  return { onTheClockTeamId: onTheClock.id, requiredTier, recommendedPicksPerTier, isComplete: false };
 }
 
 /** The undrafted pool for one specific tier (a team may have several tiers
@@ -119,4 +154,22 @@ export function undraftedPlayersInTier(
   tier: number,
 ): DraftPlayer[] {
   return eligiblePlayers.filter((p) => p.tier === tier && !draftedPlayerIds.has(p.id));
+}
+
+/** Which captain drafts first, per the "worse seed picks first" rule —
+ * tier trumps intra-tier seed (a tier-4 captain is always "worse" than a
+ * tier-1 captain, regardless of seed). A missing seed is treated as worse
+ * than any actual seed in the same tier, since there's no better default
+ * than "assume unseeded until told otherwise." Ties (identical tier and
+ * seed, or both missing seeds in the same tier) default to `a`, so this is
+ * always a well-defined total order. */
+export function worseSeededCaptain(
+  a: { tier: number; seed: number | null },
+  b: { tier: number; seed: number | null },
+): "a" | "b" {
+  if (a.tier !== b.tier) return a.tier > b.tier ? "a" : "b";
+  if (a.seed != null && b.seed != null && a.seed !== b.seed) return a.seed > b.seed ? "a" : "b";
+  if (a.seed == null && b.seed != null) return "a";
+  if (a.seed != null && b.seed == null) return "b";
+  return "a";
 }

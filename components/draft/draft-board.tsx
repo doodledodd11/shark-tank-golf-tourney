@@ -50,7 +50,9 @@ export function DraftBoard({
   }
 
   const myTurn = Boolean(data.myTeamId) && data.myTeamId === data.onTheClockTeamId && !data.isComplete;
-  const tiersWithPlayers = [1, 2, 3, 4].filter((tier) => data.undraftedPlayers.some((p) => p.tier === tier));
+  const tiersWithPlayers = [1, 2, 3, 4]
+    .filter((tier) => data.undraftedPlayers.some((p) => p.tier === tier))
+    .filter((tier) => data.requiredTier == null || tier === data.requiredTier);
 
   return (
     <div className="space-y-6">
@@ -72,7 +74,11 @@ export function DraftBoard({
             </p>
             {captainToken && (
               <p className="text-sm text-ink-700/60">
-                {myTurn ? "It's your pick. Choose anyone from any tier below." : "Waiting for the other captain to pick…"}
+                {myTurn
+                  ? data.requiredTier != null
+                    ? `It's your pick — mirrors the last pick, so it has to come from ${TIER_LABELS[data.requiredTier]}.`
+                    : "It's your pick. Choose anyone from any tier below."
+                  : "Waiting for the other captain to pick…"}
               </p>
             )}
           </div>
@@ -83,8 +89,17 @@ export function DraftBoard({
         <div className="rounded-2xl border border-gold-400/60 bg-gold-50/50 p-5">
           <p className="font-semibold text-fairway-900">Your Pick</p>
           <p className="text-xs text-ink-700/50">
-            Pick anyone from any tier. The tier counts below are a suggested target for a balanced
-            roster, not a requirement.
+            {data.requiredTier != null ? (
+              <>
+                This pick mirrors the tier the last pick came from — only {TIER_LABELS[data.requiredTier]} is
+                available right now.
+              </>
+            ) : (
+              <>
+                This is a free pick — any tier. The tier counts below are a suggested target for a balanced
+                roster, not a requirement.
+              </>
+            )}
           </p>
           {pickError && <p className="mt-2 text-sm font-medium text-red-600">{pickError}</p>}
           <div className="mt-3 space-y-4">

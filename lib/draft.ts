@@ -11,7 +11,13 @@
 import { prisma } from "@/lib/db";
 import { getRoundWithDetails, type RoundWithDetails } from "@/lib/data";
 import { getEligiblePlayersForRound } from "@/lib/player-status";
-import { computeDraftState, recommendedRemainingByTier, type DraftTeam } from "@/lib/draft-logic";
+import {
+  computeDraftState,
+  recommendedRemainingByTier,
+  worseSeededCaptain,
+  type DraftTeam,
+  type DraftPickRecord,
+} from "@/lib/draft-logic";
 
 export interface FormState {
   error?: string;
@@ -30,10 +36,14 @@ export interface DraftBoardData {
   }[];
   undraftedPlayers: { id: string; name: string; tier: number }[];
   onTheClockTeamId: string | null;
+  /** The tier the next pick is locked to (the draft's tier-mirror rule —
+   * every second pick must match the tier the pick right before it came
+   * from), or null when this pick is free. */
+  requiredTier: number | null;
   /** How many more players the on-the-clock team would need from each tier
    * (1-4) to hit the recommended balanced target — null once the draft is
    * complete. Purely a suggestion shown in the pick UI; every tier stays
-   * pickable regardless of this number. */
+   * pickable regardless of this number (except when requiredTier locks it). */
   onTheClockRecommendedByTier: Record<number, number> | null;
   recommendedPicksPerTier: number;
   isComplete: boolean;
@@ -42,17 +52,53 @@ export interface DraftBoardData {
 
 /** The shape lib/draft-logic.ts's pure functions need, derived from a
  * loaded round — factored out since both submitDraftPickLogic and
- * getDraftBoardData need to recompute the current draft state fresh. */
+ * getDraftBoardData need to recompute the current draft state fresh.
+ * `picksInOrder` is every real pick (never the auto-seated captain/partner
+ * rows) across both teams, oldest first — reconstructed from
+ * TeamMembership.createdAt rather than tracked separately, so it can't
+ * drift out of sync with the actual rosters. */
 function toDraftTeams(round: RoundWithDetails) {
   const draftTeams = round.teams.map((t): DraftTeam => ({ id: t.id, order: t.order })) as [DraftTeam, DraftTeam];
   const rosterPlayerIdsByTeam = Object.fromEntries(round.teams.map((t) => [t.id, t.memberships.map((m) => m.playerId)]));
-  return { draftTeams, rosterPlayerIdsByTeam };
+  const picksInOrder: DraftPickRecord[] = round.teams
+    .flatMap((t) => t.memberships.filter((m) => !m.autoSeated))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((m) => ({ tier: m.player.tier }));
+  return { draftTeams, rosterPlayerIdsByTeam, picksInOrder };
+}
+
+/** The cross-tier auto-partner: when the two captains are from different
+ * tiers, each is automatically seated with the player from the OTHER
+ * captain's tier at their OWN seed number (captain A1 + captain B3 ->
+ * A1 also gets B1, B3 also gets A3). Returns null (no auto-partner) if the
+ * captains share a tier, either is missing a seed, or the corresponding
+ * seed slot doesn't exist/is already the other captain — this is a bonus
+ * on top of the normal draft, never a blocker for starting one. */
+function crossTierAutoPartners(
+  captainA: { id: string; tier: number; seed: number | null },
+  captainB: { id: string; tier: number; seed: number | null },
+  eligiblePlayers: { id: string; tier: number; seed: number | null }[],
+): { forA: string; forB: string } | null {
+  if (captainA.tier === captainB.tier) return null;
+  if (captainA.seed == null || captainB.seed == null) return null;
+
+  const forA = eligiblePlayers.find((p) => p.tier === captainB.tier && p.seed === captainA.seed);
+  const forB = eligiblePlayers.find((p) => p.tier === captainA.tier && p.seed === captainB.seed);
+  if (!forA || !forB || forA.id === captainB.id || forB.id === captainA.id || forA.id === forB.id) return null;
+
+  return { forA: forA.id, forB: forB.id };
 }
 
 /** Starts a live draft for a round: designates the two captains, seats each
  * one onto their own team as their first pick, and issues each team a
  * fresh access token. Refuses if the round already has any roster at all —
- * this is a clean-slate operation, not a way to patch an existing draft. */
+ * this is a clean-slate operation, not a way to patch an existing draft.
+ *
+ * Which captain lands on Team A (order 0, picks first) isn't necessarily
+ * whichever the admin passed as `captainAPlayerId` — the worse-seeded
+ * captain always picks first (see worseSeededCaptain), so the two are
+ * reordered here if needed. If the captains are in different tiers, each
+ * also gets auto-seated with a second player via crossTierAutoPartners. */
 export async function startDraftLogic(input: {
   roundId: string;
   captainAPlayerId: string;
@@ -74,10 +120,19 @@ export async function startDraftLogic(input: {
   }
 
   const allPlayers = await prisma.player.findMany({ where: { tournamentId: round.tournamentId } });
-  const eligibleIds = new Set(getEligiblePlayersForRound(round, allPlayers).map((p) => p.id));
+  const eligiblePlayers = getEligiblePlayersForRound(round, allPlayers);
+  const eligibleIds = new Set(eligiblePlayers.map((p) => p.id));
   if (!eligibleIds.has(input.captainAPlayerId) || !eligibleIds.has(input.captainBPlayerId)) {
     return { error: "Both captains must be eligible players for this round." };
   }
+
+  const inputCaptainA = eligiblePlayers.find((p) => p.id === input.captainAPlayerId)!;
+  const inputCaptainB = eligiblePlayers.find((p) => p.id === input.captainBPlayerId)!;
+  const worse = worseSeededCaptain(inputCaptainA, inputCaptainB);
+  const orderZeroCaptain = worse === "a" ? inputCaptainA : inputCaptainB;
+  const orderOneCaptain = worse === "a" ? inputCaptainB : inputCaptainA;
+
+  const autoPartners = crossTierAutoPartners(orderZeroCaptain, orderOneCaptain, eligiblePlayers);
 
   const teamAToken = crypto.randomUUID();
   const teamBToken = crypto.randomUUID();
@@ -88,36 +143,42 @@ export async function startDraftLogic(input: {
     const a = existingTeamA
       ? await tx.team.update({
           where: { id: existingTeamA.id },
-          data: { captainId: input.captainAPlayerId, captainAccessToken: teamAToken },
+          data: { captainId: orderZeroCaptain.id, captainAccessToken: teamAToken },
         })
       : await tx.team.create({
           data: {
             roundId: input.roundId,
             name: "Team A",
             order: 0,
-            captainId: input.captainAPlayerId,
+            captainId: orderZeroCaptain.id,
             captainAccessToken: teamAToken,
           },
         });
     const b = existingTeamB
       ? await tx.team.update({
           where: { id: existingTeamB.id },
-          data: { captainId: input.captainBPlayerId, captainAccessToken: teamBToken },
+          data: { captainId: orderOneCaptain.id, captainAccessToken: teamBToken },
         })
       : await tx.team.create({
           data: {
             roundId: input.roundId,
             name: "Team B",
             order: 1,
-            captainId: input.captainBPlayerId,
+            captainId: orderOneCaptain.id,
             captainAccessToken: teamBToken,
           },
         });
 
     await tx.teamMembership.createMany({
       data: [
-        { teamId: a.id, playerId: input.captainAPlayerId },
-        { teamId: b.id, playerId: input.captainBPlayerId },
+        { teamId: a.id, playerId: orderZeroCaptain.id, autoSeated: true },
+        { teamId: b.id, playerId: orderOneCaptain.id, autoSeated: true },
+        ...(autoPartners
+          ? [
+              { teamId: a.id, playerId: autoPartners.forA, autoSeated: true },
+              { teamId: b.id, playerId: autoPartners.forB, autoSeated: true },
+            ]
+          : []),
       ],
     });
   });
@@ -149,7 +210,8 @@ export async function cancelDraftLogic(roundId: string): Promise<FormState> {
 /** Submits one captain's pick. The only authorization is the token match —
  * see the file header for why that's correct here, unlike everywhere else
  * in the app. Re-derives whose turn it actually is (never trusts the
- * client's idea of the board state) before allowing the pick through. */
+ * client's idea of the board state) before allowing the pick through, and
+ * enforces the tier-mirror rule the same way. */
 export async function submitDraftPickLogic(input: {
   roundId: string;
   captainToken: string;
@@ -164,14 +226,17 @@ export async function submitDraftPickLogic(input: {
 
   const allPlayers = await prisma.player.findMany({ where: { tournamentId: round.tournamentId } });
   const eligiblePlayers = getEligiblePlayersForRound(round, allPlayers);
-  const { draftTeams, rosterPlayerIdsByTeam } = toDraftTeams(round);
-  const state = computeDraftState(draftTeams, rosterPlayerIdsByTeam, eligiblePlayers, round.playersStart);
+  const { draftTeams, rosterPlayerIdsByTeam, picksInOrder } = toDraftTeams(round);
+  const state = computeDraftState(draftTeams, rosterPlayerIdsByTeam, picksInOrder, eligiblePlayers, round.playersStart);
 
   if (state.isComplete) return { error: "The draft is already complete." };
   if (state.onTheClockTeamId !== myTeam.id) return { error: "It isn't your team's turn to pick." };
 
   const player = eligiblePlayers.find((p) => p.id === input.playerId);
   if (!player) return { error: "That player isn't eligible for this round." };
+  if (state.requiredTier != null && player.tier !== state.requiredTier) {
+    return { error: `This pick has to come from Tier ${state.requiredTier}.` };
+  }
 
   const alreadyDrafted = round.teams.some((t) => t.memberships.some((m) => m.playerId === input.playerId));
   if (alreadyDrafted) return { error: "That player has already been drafted." };
@@ -187,8 +252,8 @@ export async function submitDraftPickLogic(input: {
   if (stillUndrafted.length === 1) {
     const freshRound = await getRoundWithDetails(input.roundId);
     if (freshRound) {
-      const { draftTeams: freshTeams, rosterPlayerIdsByTeam: freshRoster } = toDraftTeams(freshRound);
-      const freshState = computeDraftState(freshTeams, freshRoster, eligiblePlayers, round.playersStart);
+      const { draftTeams: freshTeams, rosterPlayerIdsByTeam: freshRoster, picksInOrder: freshPicks } = toDraftTeams(freshRound);
+      const freshState = computeDraftState(freshTeams, freshRoster, freshPicks, eligiblePlayers, round.playersStart);
       if (freshState.onTheClockTeamId) {
         await prisma.teamMembership.create({
           data: { teamId: freshState.onTheClockTeamId, playerId: stillUndrafted[0]!.id },
@@ -212,8 +277,8 @@ export async function getDraftBoardData(roundId: string, captainToken?: string |
   const allPlayers = await prisma.player.findMany({ where: { tournamentId: round.tournamentId } });
   const playerNameById = new Map(allPlayers.map((p) => [p.id, p.name]));
   const eligiblePlayers = getEligiblePlayersForRound(round, allPlayers);
-  const { draftTeams, rosterPlayerIdsByTeam } = toDraftTeams(round);
-  const state = computeDraftState(draftTeams, rosterPlayerIdsByTeam, eligiblePlayers, round.playersStart);
+  const { draftTeams, rosterPlayerIdsByTeam, picksInOrder } = toDraftTeams(round);
+  const state = computeDraftState(draftTeams, rosterPlayerIdsByTeam, picksInOrder, eligiblePlayers, round.playersStart);
 
   const draftedIds = new Set(round.teams.flatMap((t) => t.memberships.map((m) => m.playerId)));
   const undraftedPlayers = eligiblePlayers
@@ -238,6 +303,7 @@ export async function getDraftBoardData(roundId: string, captainToken?: string |
     })),
     undraftedPlayers,
     onTheClockTeamId: state.onTheClockTeamId,
+    requiredTier: state.requiredTier,
     onTheClockRecommendedByTier,
     recommendedPicksPerTier: state.recommendedPicksPerTier,
     isComplete: state.isComplete,
